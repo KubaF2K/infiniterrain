@@ -8,7 +8,7 @@ import kotlin.random.Random
 fun fade(x: Double) = 6 * x.pow(5) - 15*x.pow(4) + 10*x.pow(3)
 fun lerp(t: Double, a1: Double, a2: Double) = (1-t) * a1 + t * a2
 
-class Perlin(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) {
+class ChunkBlock(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) {
     private val random = Random(seed)
     val vectors = Array(chunksY + 1) { DoubleArray(chunksX + 1) { random.nextDouble() * Math.PI * 2 } }
     val intensities = Array(chunksY * chunkSize) { y ->
@@ -111,7 +111,7 @@ class Perlin(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long)
                 newChunksY++
             }
 
-            val octave = Perlin(newChunksX, newChunksY, newChunkSize, random.nextLong())
+            val octave = ChunkBlock(newChunksX, newChunksY, newChunkSize, random.nextLong())
 
             add(octave.intensities, strength)
         }

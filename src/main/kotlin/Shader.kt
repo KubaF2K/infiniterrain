@@ -1,3 +1,5 @@
+import org.joml.Matrix4f
+import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL33.*
 import java.io.Closeable
 import java.io.File
@@ -54,5 +56,10 @@ class Shader(vertexPath: String, fragmentPath: String): Closeable {
     }
     operator fun set(name: CharSequence, value: Float) {
         glUniform1f(glGetUniformLocation(id, name), value)
+    }
+    operator fun set(name: CharSequence, value: Matrix4f) {
+        val matrixBuffer = BufferUtils.createFloatBuffer(16)
+        value.get(matrixBuffer)
+        glUniformMatrix4fv(glGetUniformLocation(id, name), false, matrixBuffer)
     }
 }

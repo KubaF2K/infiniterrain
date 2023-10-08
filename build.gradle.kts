@@ -27,6 +27,9 @@ repositories {
 }
 
 dependencies {
+    // https://mvnrepository.com/artifact/org.joml/joml
+    implementation("org.joml:joml:1.10.5")
+
     implementation(platform("org.lwjgl:lwjgl-bom:$lwjglVersion"))
 
     implementation("org.lwjgl", "lwjgl")

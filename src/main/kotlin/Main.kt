@@ -1,32 +1,57 @@
+import org.joml.Matrix4f
 import kotlin.random.Random
 import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33.*
+import kotlin.math.PI
 
-fun processInput(window: Long) {
+fun processInput(window: Long, view: Matrix4f) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true)
     }
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+        view.translate(1f*deltaTime, 0f, 0f)
+    }
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+        view.translate(-1f*deltaTime, 0f, 0f)
+    }
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+        view.translate(0f, 0f, 1f*deltaTime)
+    }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        view.translate(0f, 0f, -1f*deltaTime)
+    }
 }
 
+var deltaTime = 1f
+var lastFrameStartTime = 0f
+
+fun Float.toRadians(): Float {
+    return this / 180 * PI.toFloat()
+}
 fun main() {
+    var windowWidth = 800
+    var windowHeight = 600
+
     val width = 5
     val height = 5
     val chunkSize = 100
     val seed = 1234
     val rng = Random(seed)
-    val perlin = Perlin(width, height, chunkSize, rng.nextLong())
+    val chunkBlock = ChunkBlock(width, height, chunkSize, rng.nextLong())
 
-    perlin.generateOctaves(4, 0.75, 2.0)
+    chunkBlock.generateOctaves(4, 0.75, 2.0)
 
-    val noiseTexture = perlin.getBrightnessGLBuffer()
+    val noiseTexture = chunkBlock.getBrightnessGLBuffer()
 
     glfwInit()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE)
 
-    val window = glfwCreateWindow(perlin.width, perlin.height, "helo perlin", 0, 0)
+    lastFrameStartTime = glfwGetTime().toFloat()
+
+    val window = glfwCreateWindow(windowWidth, windowHeight, "helo perlin", 0, 0)
     if (window == 0L) {
         println("Failed to create GLFW window")
         glfwTerminate()
@@ -35,10 +60,14 @@ fun main() {
 
     glfwMakeContextCurrent(window)
     glfwSetFramebufferSizeCallback(window) { _, cWidth, cHeight ->
-        glViewport(0, 0, cWidth, cHeight)
+        windowWidth = cWidth
+        windowHeight = cHeight
+        glViewport(0, 0, windowWidth, windowHeight)
     }
 
     GL.createCapabilities()
+
+    glEnable(GL_DEPTH_TEST)
 
     val shader = Shader("glsl/shader.vert", "glsl/shader.frag")
 
@@ -87,20 +116,36 @@ fun main() {
 
 //    textureBuffer.reset()
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, perlin.width, perlin.height, 0, GL_RGB, GL_UNSIGNED_BYTE, noiseTexture)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, chunkBlock.width, chunkBlock.height, 0, GL_RGB, GL_UNSIGNED_BYTE, noiseTexture)
     glGenerateMipmap(GL_TEXTURE_2D)
 
     shader.use()
     shader["texture0"] = 0
 
+    val view = Matrix4f().translate(0f, 0f, -3f)
+
     while (!glfwWindowShouldClose(window)) {
-        processInput(window)
+        val now = glfwGetTime().toFloat()
+        deltaTime = now - lastFrameStartTime
+        lastFrameStartTime = now
+
+        processInput(window, view)
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
-        glClear(GL_COLOR_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, texture)
+
+        val model = Matrix4f()
+            .translate(0f, -0.5f, 0f)
+            .rotate((-55f).toRadians(), 1f, 0f, 0f)
+        val projection = Matrix4f()
+            .perspective(45f.toRadians(), windowWidth.toFloat() / windowHeight.toFloat(), 0.1f, 100f)
+
+        shader["model"] = model
+        shader["view"] = view
+        shader["projection"] = projection
 
         shader.use()
         glBindVertexArray(vao)
@@ -108,6 +153,7 @@ fun main() {
 
         glfwSwapBuffers(window)
         glfwPollEvents()
+
     }
 
     glDeleteVertexArrays(vertexArrays.toIntArray())
