@@ -23,7 +23,7 @@ var firstMouse = true
 
 val blocks = HashMap<Coords, Block>()
 val blockTextures = HashMap<Coords, Int>()
-val textureThreads = HashMap<Coords, Thread>()
+val blockThreads = HashMap<Coords, Thread>()
 var generateX = 0L
 var generateY = 0L
 
@@ -101,7 +101,6 @@ fun main() {
 
     val vertexArrays = ArrayList<Int>()
     val buffers = ArrayList<Int>()
-    val textures = ArrayList<Int>()
 
     val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
     val vbo = glGenBuffers().apply { buffers.add(this) }
@@ -186,7 +185,7 @@ fun main() {
 
     glDeleteVertexArrays(vertexArrays.toIntArray())
     glDeleteBuffers(buffers.toIntArray())
-    glDeleteTextures(textures.toIntArray())
+    glDeleteTextures(blockTextures.values.toIntArray())
 }
 
 fun processInput(window: Long) {
@@ -205,15 +204,15 @@ fun processInput(window: Long) {
 }
 
 fun generateChunk(x: Long, y: Long) {
-    if (blocks[x, y] == null && textureThreads[x, y]?.isAlive != true) {
+    if (blocks[x, y] == null && blockThreads[x, y]?.isAlive != true) {
         val thread = Thread {
             val block = Block(blockWidth, blockHeight, chunkSize, rng.nextLong()).generateOctaves(4, 0.75, 2.0)
             synchronized(blocks) {
                 blocks[x, y] = block
             }
-            textureThreads.remove(Pair(x, y))
+            blockThreads.remove(Pair(x, y))
         }
-        textureThreads[x, y] = thread
+        blockThreads[x, y] = thread
         thread.start()
     }
 }
