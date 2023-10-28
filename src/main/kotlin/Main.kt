@@ -11,22 +11,25 @@ var lastFrameStartTime = 0f
 var windowWidth = 800
 var windowHeight = 600
 
+val blockWidth = 5
+val blockHeight = 5
+val chunkSize = 100
+val rng = Random(1234)
+
 val camera = Camera(0f, 0f, 3f)
 var lastX = windowWidth.toFloat()/2
 var lastY = windowHeight.toFloat()/2
 var firstMouse = true
 
+val blocks = HashMap<Coords, Block>()
+val blockTextures = HashMap<Coords, Int>()
+val textureThreads = HashMap<Coords, Thread>()
+var generateX = 0L
+var generateY = 0L
+
 fun main() {
-    val width = 5
-    val height = 5
-    val chunkSize = 100
-    val seed = 1234
-    val rng = Random(seed)
-    val block = Block(width, height, chunkSize, rng.nextLong())
 
-    block.generateOctaves(4, 0.75, 2.0)
-
-    val noiseTexture = block.getBrightnessGLBuffer()
+    generateChunk(generateX, generateY)
 
     glfwInit()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3)
@@ -65,6 +68,15 @@ fun main() {
     }
     glfwSetScrollCallback(window) { _, _, yOffset ->
         camera.processMouseScroll(yOffset.toFloat())
+    }
+    glfwSetKeyCallback(window) { _, key, scancode, action, mods ->
+        if (action == GLFW_PRESS) when (key) {
+            GLFW_KEY_ESCAPE -> glfwSetWindowShouldClose(window, true)
+            GLFW_KEY_LEFT -> generateChunk(--generateX, generateY)
+            GLFW_KEY_RIGHT -> generateChunk(++generateX, generateY)
+            GLFW_KEY_UP -> generateChunk(generateX, ++generateY)
+            GLFW_KEY_DOWN -> generateChunk(generateX, --generateY)
+        }
     }
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED)
@@ -109,20 +121,6 @@ fun main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, false, 5 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
     glEnableVertexAttribArray(1)
 
-    val texture = glGenTextures().apply { textures.add(this) }
-    glBindTexture(GL_TEXTURE_2D, texture)
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-
-//    textureBuffer.reset()
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, block.width, block.height, 0, GL_RGB, GL_UNSIGNED_BYTE, noiseTexture)
-    glGenerateMipmap(GL_TEXTURE_2D)
-
     shader.use()
     shader["texture0"] = 0
 
@@ -135,23 +133,51 @@ fun main() {
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+        synchronized(blocks) {
+            for ((coords, block) in blocks) {
+                val textureId = blockTextures[coords] ?: run {
+                    val texture = glGenTextures().apply { blockTextures[coords] = this }
+                    glBindTexture(GL_TEXTURE_2D, texture)
 
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, texture)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
 
-        val model = Matrix4f()
-            .translate(0f, -0.5f, 0f)
-            .rotate((-55f).toRadians(), 1f, 0f, 0f)
-        val projection = Matrix4f()
-            .perspective(45f.toRadians(), windowWidth.toFloat() / windowHeight.toFloat(), 0.1f, 100f)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-        shader["model"] = model
-        shader["view"] = camera.viewMatrix
-        shader["projection"] = projection
+                    glTexImage2D(
+                        GL_TEXTURE_2D,
+                        0,
+                        GL_RGB,
+                        block.width,
+                        block.height,
+                        0,
+                        GL_RGB,
+                        GL_UNSIGNED_BYTE,
+                        block.getBrightnessGLBuffer()
+                    )
+                    glGenerateMipmap(GL_TEXTURE_2D)
 
-        shader.use()
-        glBindVertexArray(vao)
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
+                    return@run texture
+                }
+                glActiveTexture(GL_TEXTURE0)
+                glBindTexture(GL_TEXTURE_2D, textureId)
+
+                val model = Matrix4f()
+                    .translate(coords.first * 2.toFloat(), -0.5f, coords.second * 2.toFloat())
+                    .rotate((-90f).toRadians(), 1f, 0f, 0f)
+                val projection = Matrix4f()
+                    .perspective(45f.toRadians(), windowWidth.toFloat() / windowHeight.toFloat(), 0.1f, 100f)
+
+                shader["model"] = model
+                shader["view"] = camera.viewMatrix
+                shader["projection"] = projection
+
+                shader.use()
+                glBindVertexArray(vao)
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
+            }
+        }
 
         glfwSwapBuffers(window)
         glfwPollEvents()
@@ -164,9 +190,6 @@ fun main() {
 }
 
 fun processInput(window: Long) {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(window, true)
-    }
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         camera.processKeyboard(FORWARD, deltaTime)
     }
@@ -178,5 +201,19 @@ fun processInput(window: Long) {
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         camera.processKeyboard(RIGHT, deltaTime)
+    }
+}
+
+fun generateChunk(x: Long, y: Long) {
+    if (blocks[x, y] == null && textureThreads[x, y]?.isAlive != true) {
+        val thread = Thread {
+            val block = Block(blockWidth, blockHeight, chunkSize, rng.nextLong()).generateOctaves(4, 0.75, 2.0)
+            synchronized(blocks) {
+                blocks[x, y] = block
+            }
+            textureThreads.remove(Pair(x, y))
+        }
+        textureThreads[x, y] = thread
+        thread.start()
     }
 }

@@ -84,7 +84,7 @@ class Block(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) 
         buffer.rewind()
         return buffer
     }
-    fun generateOctaves(count: Int, persistence: Double, lacunarity: Double) {
+    fun generateOctaves(count: Int, persistence: Double, lacunarity: Double): Block {
         var newChunksX = chunksX
         var newChunksY = chunksY
 
@@ -115,6 +115,8 @@ class Block(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) 
 
             add(octave.intensities, strength)
         }
+
+        return this
     }
 
     fun add(intensities: Array<DoubleArray>, strength: Double) {

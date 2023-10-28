@@ -29,3 +29,9 @@ infix fun Vector3fc.cross(other: Vector3fc) = Vector3f().apply { this@cross.cros
  * Converts the angle from degrees to radians.
  */
 fun Float.toRadians() = this / 180 * PI.toFloat()
+
+operator fun <T1, T2, T3> HashMap<Pair<T1, T2>, T3>.get(x: T1, y: T2) = this[Pair(x,y)]
+
+operator fun <T1, T2, T3> HashMap<Pair<T1, T2>, T3>.set(x: T1, y: T2, value: T3) { this[Pair(x,y)] = value }
+
+typealias Coords = Pair<Long, Long>

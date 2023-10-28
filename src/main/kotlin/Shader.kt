@@ -2,16 +2,16 @@ import org.joml.Matrix4f
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL33.*
 import java.io.Closeable
-import java.io.File
 
 class Shader(vertexPath: String, fragmentPath: String): Closeable {
     val id: Int
+    val matrix4fBuffer = BufferUtils.createFloatBuffer(16)
     init {
         val vertexCode = this::class.java.getResourceAsStream(vertexPath)?.bufferedReader()?.readText()
         val fragmentCode = this::class.java.getResourceAsStream(fragmentPath)?.bufferedReader()?.readText()
 
         val vertex = glCreateShader(GL_VERTEX_SHADER)
-        glShaderSource(vertex, vertexCode)
+        glShaderSource(vertex, vertexCode!!)
         glCompileShader(vertex)
 
         if (glGetShaderi(vertex, GL_COMPILE_STATUS) != GL_TRUE) {
@@ -19,7 +19,7 @@ class Shader(vertexPath: String, fragmentPath: String): Closeable {
         }
 
         val fragment = glCreateShader(GL_FRAGMENT_SHADER)
-        glShaderSource(fragment, fragmentCode)
+        glShaderSource(fragment, fragmentCode!!)
         glCompileShader(fragment)
 
 
@@ -58,8 +58,8 @@ class Shader(vertexPath: String, fragmentPath: String): Closeable {
         glUniform1f(glGetUniformLocation(id, name), value)
     }
     operator fun set(name: CharSequence, value: Matrix4f) {
-        val matrixBuffer = BufferUtils.createFloatBuffer(16)
-        value.get(matrixBuffer)
-        glUniformMatrix4fv(glGetUniformLocation(id, name), false, matrixBuffer)
+        matrix4fBuffer.rewind()
+        value.get(matrix4fBuffer)
+        glUniformMatrix4fv(glGetUniformLocation(id, name), false, matrix4fBuffer)
     }
 }
