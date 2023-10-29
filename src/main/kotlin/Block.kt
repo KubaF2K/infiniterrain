@@ -8,9 +8,42 @@ import kotlin.random.Random
 fun fade(x: Double) = 6 * x.pow(5) - 15*x.pow(4) + 10*x.pow(3)
 fun lerp(t: Double, a1: Double, a2: Double) = (1-t) * a1 + t * a2
 
-class Block(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) {
+class Block(
+    val chunksX: Int,
+    val chunksY: Int,
+    val chunkSize: Int,
+    seed: Long = Random.nextLong(),
+    topNeighbor: Block? = null,
+    rightNeighbor: Block? = null,
+    bottomNeighbor: Block? = null,
+    leftNeighbor: Block? = null
+) {
     private val random = Random(seed)
-    val vectors = Array(chunksY + 1) { DoubleArray(chunksX + 1) { random.nextDouble() * Math.PI * 2 } }
+    
+    val vectors: Array<DoubleArray> =
+        (Array(chunksY + 1) { DoubleArray(chunksX + 1) { random.nextDouble() * Math.PI * 2 } }).apply {
+            topNeighbor?.let {
+                for (x in 0..chunksX) {
+                    this[0][x] = it.vectors[chunksY][x]
+                }
+            }
+            rightNeighbor?.let {
+                for (y in 0..chunksY) {
+                    this[y][chunksX] = it.vectors[y][0]
+                }
+            }
+            bottomNeighbor?.let {
+                for (x in 0..chunksX) {
+                    this[chunksY][x] = it.vectors[0][x]
+                }
+            }
+            leftNeighbor?.let {
+                for (y in 0..chunksY) {
+                    this[y][0] = it.vectors[y][chunksY]
+                }
+            }
+        }
+    
     val intensities = Array(chunksY * chunkSize) { y ->
         DoubleArray(chunksX * chunkSize) { x ->
             val chunkX = x / chunkSize
@@ -19,10 +52,10 @@ class Block(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) 
             val a = x % chunkSize
             val b = y % chunkSize
 
-            val topLeftVector = vectors[chunkX][chunkY]
-            val topRightVector = vectors[chunkX + 1][chunkY]
-            val bottomLeftVector = vectors[chunkX][chunkY + 1]
-            val bottomRightVector = vectors[chunkX + 1][chunkY + 1]
+            val topLeftVector = vectors[chunkY][chunkX]
+            val topRightVector = vectors[chunkY][chunkX+1]
+            val bottomLeftVector = vectors[chunkY+1][chunkX]
+            val bottomRightVector = vectors[chunkY+1][chunkX+1]
 
             val topLeftIntensity = (-a * cos(topLeftVector)) + (-b * sin(topLeftVector))
             val topRightIntensity = ((chunkSize - a) * cos(topRightVector)) + (-b * sin(topRightVector))
@@ -46,30 +79,30 @@ class Block(val chunksX: Int, val chunksY: Int, val chunkSize: Int, seed: Long) 
         get() = chunksY * chunkSize
 
     fun getNormalizedIntensities(): Array<DoubleArray> {
-            var maxIntensity = intensities[0][0]
-            var minIntensity = intensities[0][0]
+        var maxIntensity = intensities[0][0]
+        var minIntensity = intensities[0][0]
 
-            for (row in intensities) {
-                for (intensity in row) {
-                    if (intensity > maxIntensity) {
-                        maxIntensity = intensity
-                    }
-                    if (intensity < minIntensity) {
-                        minIntensity = intensity
-                    }
+        for (row in intensities) {
+            for (intensity in row) {
+                if (intensity > maxIntensity) {
+                    maxIntensity = intensity
+                }
+                if (intensity < minIntensity) {
+                    minIntensity = intensity
                 }
             }
-
-            return intensities.map { column ->
-                 column.map { intensity ->
-                     if (minIntensity == maxIntensity) {
-                         0.5
-                     } else {
-                         (intensity-minIntensity)/(maxIntensity-minIntensity)
-                     }
-                 }.toDoubleArray()
-            }.toTypedArray()
         }
+
+        return intensities.map { column ->
+             column.map { intensity ->
+                 if (minIntensity == maxIntensity) {
+                     0.5
+                 } else {
+                     (intensity-minIntensity)/(maxIntensity-minIntensity)
+                 }
+             }.toDoubleArray()
+        }.toTypedArray()
+    }
 
     fun getBrightnessGLBuffer(): ByteBuffer {
         val buffer = BufferUtils.createByteBuffer(width * height * 3)

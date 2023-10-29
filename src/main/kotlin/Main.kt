@@ -206,7 +206,16 @@ fun processInput(window: Long) {
 fun generateChunk(x: Long, y: Long) {
     if (blocks[x, y] == null && blockThreads[x, y]?.isAlive != true) {
         val thread = Thread {
-            val block = Block(blockWidth, blockHeight, chunkSize, rng.nextLong()).generateOctaves(4, 0.75, 2.0)
+            val block = Block(
+                blockWidth,
+                blockHeight,
+                chunkSize,
+                rng.nextLong(),
+                blocks[x, y-1],
+                blocks[x+1, y],
+                blocks[x, y+1],
+                blocks[x-1, y]
+            )//.generateOctaves(4, 0.75, 2.0)
             synchronized(blocks) {
                 blocks[x, y] = block
             }
