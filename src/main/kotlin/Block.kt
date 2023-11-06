@@ -44,7 +44,7 @@ class Block(
             }
         }
     
-    val intensities = Array(chunksY * chunkSize) { y ->
+    val intensities: Array<DoubleArray> = Array(chunksY * chunkSize) { y ->
         DoubleArray(chunksX * chunkSize) { x ->
             val chunkX = x / chunkSize
             val chunkY = y / chunkSize
@@ -69,7 +69,55 @@ class Block(
             val topLerp = lerp(xf, topLeftIntensity, topRightIntensity)
             val bottomLerp = lerp(xf, bottomLeftIntensity, bottomRightIntensity)
 
-            return@DoubleArray lerp(yf, topLerp, bottomLerp)
+            var finalValue = lerp(yf, topLerp, bottomLerp)
+
+            leftNeighbor?.let {
+                if (chunkX != 0) return@let
+
+                println("left neighbor")
+                println("x: $x")
+                println("y: $y")
+                println("other x: ${it.width-1 - x}")
+                println("other y: $y")
+                println("value: $finalValue")
+                println("other value: ${it.intensities[y][it.width-1 - x]}")
+                finalValue = lerp(
+                    xf,
+                    it.intensities[y][it.width-1 - x],
+                    finalValue
+                )
+                println("final value: $finalValue")
+            }
+            rightNeighbor?.let {
+                if (chunkX != chunksX-1) return@let
+
+                finalValue = lerp(
+                    xf,
+                    finalValue,
+                    it.intensities[y][x - (width-1) + chunkSize]
+                )
+            }
+            topNeighbor?.let {
+                if (chunkY != 0) return@let
+
+                finalValue = lerp(
+                    yf,
+                    it.intensities[it.height-1 - y][x],
+                    finalValue
+                )
+            }
+            bottomNeighbor?.let {
+                if (chunkY != chunksY-1) return@let
+
+                finalValue = lerp(
+                    yf,
+                    finalValue,
+                    it.intensities[y - (height-1) + chunkSize][x]
+                )
+            }
+            //TODO corners, ungenerated neighbors
+
+            return@DoubleArray finalValue
         }
     }
 
