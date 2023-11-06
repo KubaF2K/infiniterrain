@@ -9,6 +9,31 @@ import kotlin.random.Random
 fun fade(x: Float) = 6 * x.pow(5) - 15 * x.pow(4) + 10 * x.pow(3)
 fun lerp(t: Float, a1: Float, a2: Float) = (1-t) * a1 + t * a2
 
+val indexArrays = HashMap<Pair<Int, Int>, IntArray>()
+
+fun getIndicesArray(width: Int, height: Int): IntArray {
+    indexArrays[width, height]?.let {
+        return it
+    }
+
+    val intArray = IntArray((width-1) * (height-1) * 6)
+
+    for (x in 0..width-2) {
+        for (y in 0..height-2) {
+            intArray[(x + y * (width-1)) * 6] = x + y * width
+            intArray[(x + y * (width-1)) * 6 + 1] = x + (y+1) * width
+            intArray[(x + y * (width-1)) * 6 + 2] = x+1 + y * width
+            intArray[(x + y * (width-1)) * 6 + 3] = x+1 + y * width
+            intArray[(x + y * (width-1)) * 6 + 4] = x + (y+1) * width
+            intArray[(x + y * (width-1)) * 6 + 5] = x+1 + (y+1) * width
+        }
+    }
+
+    indexArrays[width, height] = intArray
+
+    return intArray
+}
+
 
 class Block(
     val chunksX: Int,
@@ -157,22 +182,7 @@ class Block(
         glBindVertexArray(0)
     }
 
-    fun getIndicesArray(): IntArray {
-        val intArray = IntArray((width-1) * (height-1) * 6)
-
-        for (x in 0..width-2) {
-            for (y in 0..height-2) {
-                intArray[(x + y * (width-1)) * 6] = x + y * width
-                intArray[(x + y * (width-1)) * 6 + 1] = x + (y+1) * width
-                intArray[(x + y * (width-1)) * 6 + 2] = x+1 + y * width
-                intArray[(x + y * (width-1)) * 6 + 3] = x+1 + y * width
-                intArray[(x + y * (width-1)) * 6 + 4] = x + (y+1) * width
-                intArray[(x + y * (width-1)) * 6 + 5] = x+1 + (y+1) * width
-            }
-        }
-
-        return intArray
-    }
+    fun getIndicesArray(): IntArray = getIndicesArray(width, height)
 
     fun getMultipliedIntensities(multiplier: Float) = intensities.map { column ->
         column.map { intensity ->
