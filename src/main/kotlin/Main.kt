@@ -38,7 +38,6 @@ var generateY = 0L
 var mouseLocked = true
 
 fun main() {
-
     generateChunk(generateX, generateY)
 
     glfwInit()
@@ -119,11 +118,11 @@ fun main() {
     val shader = Shader("glsl/shader.vert", "glsl/shader.frag")
 
     val vertices = floatArrayOf(
-        //  X      Y     Z  TexX  TexY
-        -1.0f,  1.0f, 0.0f, 0.0f, 0.0f,
-         1.0f,  1.0f, 0.0f, 1.0f, 0.0f,
-        -1.0f, -1.0f, 0.0f, 0.0f, 1.0f,
-         1.0f, -1.0f, 0.0f, 1.0f, 1.0f
+        //  X     Y      Z  TexX  TexY
+        -1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+         1.0f, 0.0f,  1.0f, 1.0f, 0.0f,
+        -1.0f, 0.0f, -1.0f, 0.0f, 1.0f,
+         1.0f, 0.0f, -1.0f, 1.0f, 1.0f
     )
     val indices = intArrayOf(
         0, 1, 2,
@@ -195,7 +194,6 @@ fun main() {
 
                 val model = Matrix4f()
                     .translate(coords.first * 2.toFloat(), -0.5f, coords.second * 2.toFloat())
-                    .rotate((-90f).toRadians(), 1f, 0f, 0f)
 
                 shader["model"] = model
                 shader["view"] = camera.viewMatrix
@@ -245,7 +243,7 @@ fun generateChunk(x: Long, y: Long) {
                 blocks[x+1, y],
                 blocks[x, y+1],
                 blocks[x-1, y]
-            ).generateOctaves(4, 0.75, 2.0)
+            ).generateOctaves(4, 0.75f, 2f)
             synchronized(blocks) {
                 blocks[x, y] = block
             }

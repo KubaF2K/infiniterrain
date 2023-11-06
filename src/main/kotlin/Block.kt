@@ -5,8 +5,8 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
-fun fade(x: Double) = 6 * x.pow(5) - 15*x.pow(4) + 10*x.pow(3)
-fun lerp(t: Double, a1: Double, a2: Double) = (1-t) * a1 + t * a2
+fun fade(x: Float) = 6 * x.pow(5) - 15 * x.pow(4) + 10 * x.pow(3)
+fun lerp(t: Float, a1: Float, a2: Float) = (1-t) * a1 + t * a2
 
 class Block(
     val chunksX: Int,
@@ -20,8 +20,8 @@ class Block(
 ) {
     private val random = Random(seed)
     
-    val vectors: Array<DoubleArray> =
-        (Array(chunksY + 1) { DoubleArray(chunksX + 1) { random.nextDouble() * Math.PI * 2 } }).apply {
+    val vectors: Array<FloatArray> =
+        (Array(chunksY + 1) { FloatArray(chunksX + 1) { random.nextFloat() * Math.PI.toFloat() * 2f } }).apply {
             topNeighbor?.let {
                 for (x in 0..chunksX) {
                     this[0][x] = it.vectors[chunksY][x]
@@ -44,8 +44,8 @@ class Block(
             }
         }
     
-    val intensities: Array<DoubleArray> = Array(chunksY * chunkSize) { y ->
-        DoubleArray(chunksX * chunkSize) { x ->
+    val intensities: Array<FloatArray> = Array(chunksY * chunkSize) { y ->
+        FloatArray(chunksX * chunkSize) { x ->
             val chunkX = x / chunkSize
             val chunkY = y / chunkSize
 
@@ -63,8 +63,8 @@ class Block(
             val bottomRightIntensity =
                 ((chunkSize - a) * cos(bottomRightVector)) + ((chunkSize - b) * sin(bottomRightVector))
 
-            val xf = fade(a.toDouble() / chunkSize)
-            val yf = fade(b.toDouble() / chunkSize)
+            val xf = fade(a.toFloat() / chunkSize)
+            val yf = fade(b.toFloat() / chunkSize)
 
             val topLerp = lerp(xf, topLeftIntensity, topRightIntensity)
             val bottomLerp = lerp(xf, bottomLeftIntensity, bottomRightIntensity)
@@ -74,19 +74,11 @@ class Block(
             leftNeighbor?.let {
                 if (chunkX != 0) return@let
 
-                println("left neighbor")
-                println("x: $x")
-                println("y: $y")
-                println("other x: ${it.width-1 - x}")
-                println("other y: $y")
-                println("value: $finalValue")
-                println("other value: ${it.intensities[y][it.width-1 - x]}")
                 finalValue = lerp(
                     xf,
-                    it.intensities[y][it.width-1 - x],
+                    it.intensities[y][it.width-1 - a],
                     finalValue
                 )
-                println("final value: $finalValue")
             }
             rightNeighbor?.let {
                 if (chunkX != chunksX-1) return@let
@@ -94,30 +86,30 @@ class Block(
                 finalValue = lerp(
                     xf,
                     finalValue,
-                    it.intensities[y][x - (width-1) + chunkSize]
+                    it.intensities[y][chunkSize-1 - a]
                 )
             }
             topNeighbor?.let {
-                if (chunkY != 0) return@let
-
-                finalValue = lerp(
-                    yf,
-                    it.intensities[it.height-1 - y][x],
-                    finalValue
-                )
-            }
-            bottomNeighbor?.let {
                 if (chunkY != chunksY-1) return@let
 
                 finalValue = lerp(
                     yf,
                     finalValue,
-                    it.intensities[y - (height-1) + chunkSize][x]
+                    it.intensities[chunkSize-1 - b][x]
+                )
+            }
+            bottomNeighbor?.let {
+                if (chunkY != 0) return@let
+
+                finalValue = lerp(
+                    yf,
+                    it.intensities[it.height-1 - b][x],
+                    finalValue
                 )
             }
             //TODO corners, ungenerated neighbors
 
-            return@DoubleArray finalValue
+            return@FloatArray finalValue
         }
     }
 
@@ -126,7 +118,7 @@ class Block(
     val height
         get() = chunksY * chunkSize
 
-    fun getNormalizedIntensities(): Array<DoubleArray> {
+    fun getNormalizedIntensities(): Array<FloatArray> {
         var maxIntensity = intensities[0][0]
         var minIntensity = intensities[0][0]
 
@@ -144,11 +136,11 @@ class Block(
         return intensities.map { column ->
              column.map { intensity ->
                  if (minIntensity == maxIntensity) {
-                     0.5
+                     0.5f
                  } else {
                      (intensity-minIntensity)/(maxIntensity-minIntensity)
                  }
-             }.toDoubleArray()
+             }.toFloatArray()
         }.toTypedArray()
     }
 
@@ -165,19 +157,19 @@ class Block(
         buffer.rewind()
         return buffer
     }
-    fun generateOctaves(count: Int, persistence: Double, lacunarity: Double): Block {
+    fun generateOctaves(count: Int, persistence: Float, lacunarity: Float): Block {
         var newChunksX = chunksX
         var newChunksY = chunksY
 
         var newChunkSize = chunkSize
 
-        var strength = 1.0
+        var strength = 1f
 
         for (i in 0..<count) {
-            newChunksX = (newChunksX.toDouble() * lacunarity).toInt()
-            newChunksY = (newChunksY.toDouble() * lacunarity).toInt()
+            newChunksX = (newChunksX.toFloat() * lacunarity).toInt()
+            newChunksY = (newChunksY.toFloat() * lacunarity).toInt()
 
-            newChunkSize = (newChunkSize.toDouble() / lacunarity).toInt()
+            newChunkSize = (newChunkSize.toFloat() / lacunarity).toInt()
 
             if (newChunkSize == 0) {
                 break
@@ -200,7 +192,7 @@ class Block(
         return this
     }
 
-    fun add(intensities: Array<DoubleArray>, strength: Double) {
+    fun add(intensities: Array<FloatArray>, strength: Float) {
         for (x in 0..<width) {
             for (y in 0..<height) {
                 this.intensities[x][y] += intensities[x][y] * strength
