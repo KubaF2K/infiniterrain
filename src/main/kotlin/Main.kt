@@ -30,12 +30,13 @@ var cursorX = cameraCursorLastX
 var cursorY = cameraCursorLastY
 
 val blocks = HashMap<LCoords, Block>()
+val blockGLObjects = HashMap<LCoords, Int>()
 val blockTextures = HashMap<LCoords, Int>()
 val blockThreads = HashMap<LCoords, Thread>()
 var generateX = 0L
 var generateY = 0L
 
-var mouseLocked = true
+var mouseLocked = false
 
 fun main() {
     generateChunk(generateX, generateY)
@@ -109,7 +110,7 @@ fun main() {
         }
     }
 
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED)
+    glfwSetInputMode(window, GLFW_CURSOR, if (mouseLocked) GLFW_CURSOR_DISABLED else GLFW_CURSOR_NORMAL)
 
     GL.createCapabilities()
 
@@ -117,41 +118,41 @@ fun main() {
 
     val shader = Shader("glsl/shader.vert", "glsl/shader.frag")
 
-    val vertices = floatArrayOf(
-        //  X     Y      Z  TexX  TexY
-        -1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-         1.0f, 0.0f,  1.0f, 1.0f, 0.0f,
-        -1.0f, 0.0f, -1.0f, 0.0f, 1.0f,
-         1.0f, 0.0f, -1.0f, 1.0f, 1.0f
-    )
-    val indices = intArrayOf(
-        0, 1, 2,
-        1, 3, 2
-    )
+//    val vertices = floatArrayOf(
+//        //  X     Y      Z  TexX  TexY
+//        -1.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+//         1.0f, 0.0f,  1.0f, 1.0f, 0.0f,
+//        -1.0f, 0.0f, -1.0f, 0.0f, 1.0f,
+//         1.0f, 0.0f, -1.0f, 1.0f, 1.0f
+//    )
+//    val indices = intArrayOf(
+//        0, 1, 2,
+//        1, 3, 2
+//    )
 
     val vertexArrays = ArrayList<Int>()
     val buffers = ArrayList<Int>()
 
-    val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
-    val vbo = glGenBuffers().apply { buffers.add(this) }
-    val ebo = glGenBuffers().apply { buffers.add(this) }
-
-    glBindVertexArray(vao)
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, false, 5 * Float.SIZE_BYTES, 0)
-    glEnableVertexAttribArray(0)
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, false, 5 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
-    glEnableVertexAttribArray(1)
-
-    shader.use()
-    shader["texture0"] = 0
+//    val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
+//    val vbo = glGenBuffers().apply { buffers.add(this) }
+//    val ebo = glGenBuffers().apply { buffers.add(this) }
+//
+//    glBindVertexArray(vao)
+//
+//    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+//    glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
+//
+//    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+//    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
+//
+//    glVertexAttribPointer(0, 3, GL_FLOAT, false, 5 * Float.SIZE_BYTES, 0)
+//    glEnableVertexAttribArray(0)
+//
+//    glVertexAttribPointer(1, 2, GL_FLOAT, false, 5 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
+//    glEnableVertexAttribArray(1)
+//
+//    shader.use()
+//    shader["texture0"] = 0
 
     while (!glfwWindowShouldClose(window)) {
         val now = glfwGetTime().toFloat()
@@ -164,33 +165,43 @@ fun main() {
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
         synchronized(blocks) {
             for ((coords, block) in blocks) {
-                val textureId = blockTextures[coords] ?: run {
-                    val texture = glGenTextures().apply { blockTextures[coords] = this }
-                    glBindTexture(GL_TEXTURE_2D, texture)
+                val vao = blockGLObjects[coords] ?: run {
+                    val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
+                    val vbo = glGenBuffers().apply { buffers.add(this) }
+                    val ebo = glGenBuffers().apply { buffers.add(this) }
 
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+                    block.setGLObjects(vao, vbo, ebo)
+                    blockGLObjects[coords] = vao
 
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-
-                    glTexImage2D(
-                        GL_TEXTURE_2D,
-                        0,
-                        GL_RGB,
-                        block.width,
-                        block.height,
-                        0,
-                        GL_RGB,
-                        GL_UNSIGNED_BYTE,
-                        block.getBrightnessGLBuffer()
-                    )
-                    glGenerateMipmap(GL_TEXTURE_2D)
-
-                    return@run texture
+                    return@run vao
                 }
-                glActiveTexture(GL_TEXTURE0)
-                glBindTexture(GL_TEXTURE_2D, textureId)
+//                val textureId = blockTextures[coords] ?: run {
+//                    val texture = glGenTextures().apply { blockTextures[coords] = this }
+//                    glBindTexture(GL_TEXTURE_2D, texture)
+//
+//                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+//                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+//
+//                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+//                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+//
+//                    glTexImage2D(
+//                        GL_TEXTURE_2D,
+//                        0,
+//                        GL_RGB,
+//                        block.width,
+//                        block.height,
+//                        0,
+//                        GL_RGB,
+//                        GL_UNSIGNED_BYTE,
+//                        block.getBrightnessGLBuffer()
+//                    )
+//                    glGenerateMipmap(GL_TEXTURE_2D)
+//
+//                    return@run texture
+//                }
+//                glActiveTexture(GL_TEXTURE0)
+//                glBindTexture(GL_TEXTURE_2D, textureId)
 
                 val model = Matrix4f()
                     .translate(coords.first * 2.toFloat(), -0.5f, coords.second * 2.toFloat())
@@ -201,7 +212,7 @@ fun main() {
 
                 shader.use()
                 glBindVertexArray(vao)
-                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
+                glDrawElements(GL_TRIANGLES, block.indicesCount, GL_UNSIGNED_INT, 0)
             }
         }
 
