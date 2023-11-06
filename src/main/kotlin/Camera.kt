@@ -5,7 +5,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-const val YAW = 90f
+const val YAW = -90f
 const val PITCH = 0f
 const val SPEED = 2.5f
 const val SENSITIVITY = 0.1f
@@ -25,7 +25,7 @@ class Camera(
         RIGHT
     }
 
-    val front = Vector3f(0f, 0f, 1f)
+    val front = Vector3f(0f, 0f, -1f)
     val right = Vector3f()
     val worldUp = Vector3f(up)
     var movementSpeed = SPEED
@@ -56,17 +56,17 @@ class Camera(
         val velocity = movementSpeed * deltaTime
         position.add(
             when (direction) {
-                CameraMovement.FORWARD -> (front * velocity).negate()
-                CameraMovement.BACKWARD -> front * velocity
-                CameraMovement.LEFT -> right * velocity
-                CameraMovement.RIGHT -> (right * velocity).negate()
+                CameraMovement.FORWARD -> front * velocity
+                CameraMovement.BACKWARD -> (front * velocity).negate()
+                CameraMovement.LEFT -> (right * velocity).negate()
+                CameraMovement.RIGHT -> right * velocity
             }
         )
     }
 
     fun processMouseMovement(xOffset: Float, yOffset: Float, constrainPitch: Boolean = true) {
         yaw = (yaw + xOffset * mouseSensitivity) % 360f
-        pitch += yOffset * mouseSensitivity
+        pitch = (pitch - yOffset * mouseSensitivity) % 360f
 
         if (constrainPitch) {
             pitch = max(-89f, min(89f, pitch))

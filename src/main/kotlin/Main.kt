@@ -4,6 +4,7 @@ import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33.*
 import Camera.CameraMovement.*
+import org.joml.Vector3f
 
 var deltaTime = 0f
 var lastFrameStartTime = 0f
@@ -11,21 +12,30 @@ var lastFrameStartTime = 0f
 var windowWidth = 800
 var windowHeight = 600
 
-val blockWidth = 5
-val blockHeight = 5
-val chunkSize = 100
+const val blockWidth = 5
+const val blockHeight = 5
+const val chunkSize = 100
 val rng = Random(1234)
 
 val camera = Camera(0f, 0f, 3f)
-var lastX = windowWidth.toFloat()/2
-var lastY = windowHeight.toFloat()/2
+var cameraCursorLastX = windowWidth.toFloat()/2
+var cameraCursorLastY = windowHeight.toFloat()/2
 var firstMouse = true
 
-val blocks = HashMap<Coords, Block>()
-val blockTextures = HashMap<Coords, Int>()
-val blockThreads = HashMap<Coords, Thread>()
+val projection: Matrix4f
+    get() = Matrix4f()
+        .perspective(45f.toRadians(), windowWidth.toFloat() / windowHeight.toFloat(), 0.1f, 100f)
+
+var cursorX = cameraCursorLastX
+var cursorY = cameraCursorLastY
+
+val blocks = HashMap<LCoords, Block>()
+val blockTextures = HashMap<LCoords, Int>()
+val blockThreads = HashMap<LCoords, Thread>()
 var generateX = 0L
 var generateY = 0L
+
+var mouseLocked = true
 
 fun main() {
 
@@ -50,19 +60,24 @@ fun main() {
         glViewport(0, 0, windowWidth, windowHeight)
     }
     glfwSetCursorPosCallback(window) { _, xPos, yPos ->
+        cursorX = xPos.toFloat()
+        cursorY = yPos.toFloat()
+
+        if (!mouseLocked) return@glfwSetCursorPosCallback
+
         val newXPos = xPos.toFloat()
         val newYPos = yPos.toFloat()
 
         if (firstMouse) {
-            lastX = newXPos
-            lastY = newYPos
+            cameraCursorLastX = newXPos
+            cameraCursorLastY = newYPos
             firstMouse = false
         }
 
-        val xOffset = newXPos - lastX
-        val yOffset = newYPos - lastY
-        lastX = newXPos
-        lastY = newYPos
+        val xOffset = newXPos - cameraCursorLastX
+        val yOffset = newYPos - cameraCursorLastY
+        cameraCursorLastX = newXPos
+        cameraCursorLastY = newYPos
 
         camera.processMouseMovement(xOffset, yOffset)
     }
@@ -74,8 +89,23 @@ fun main() {
             GLFW_KEY_ESCAPE -> glfwSetWindowShouldClose(window, true)
             GLFW_KEY_LEFT -> generateChunk(--generateX, generateY)
             GLFW_KEY_RIGHT -> generateChunk(++generateX, generateY)
-            GLFW_KEY_UP -> generateChunk(generateX, ++generateY)
-            GLFW_KEY_DOWN -> generateChunk(generateX, --generateY)
+            GLFW_KEY_UP -> generateChunk(generateX, --generateY)
+            GLFW_KEY_DOWN -> generateChunk(generateX, ++generateY)
+            GLFW_KEY_F -> {
+                mouseLocked = !mouseLocked
+                firstMouse = mouseLocked
+                glfwSetInputMode(window, GLFW_CURSOR, if (mouseLocked) GLFW_CURSOR_DISABLED else GLFW_CURSOR_NORMAL)
+            }
+        }
+    }
+    glfwSetMouseButtonCallback(window) { _, button, action, mods ->
+        if (action == GLFW_PRESS) when (button) {
+            GLFW_MOUSE_BUTTON_LEFT -> {
+                println(
+                    (projection * camera.viewMatrix)
+                        .unproject(cursorX, cursorY, 0f, intArrayOf(0, 0, windowWidth, windowHeight), Vector3f())
+                )
+            }
         }
     }
 
@@ -165,8 +195,6 @@ fun main() {
                 val model = Matrix4f()
                     .translate(coords.first * 2.toFloat(), -0.5f, coords.second * 2.toFloat())
                     .rotate((-90f).toRadians(), 1f, 0f, 0f)
-                val projection = Matrix4f()
-                    .perspective(45f.toRadians(), windowWidth.toFloat() / windowHeight.toFloat(), 0.1f, 100f)
 
                 shader["model"] = model
                 shader["view"] = camera.viewMatrix
@@ -206,6 +234,7 @@ fun processInput(window: Long) {
 fun generateChunk(x: Long, y: Long) {
     if (blocks[x, y] == null && blockThreads[x, y]?.isAlive != true) {
         val thread = Thread {
+
             val block = Block(
                 blockWidth,
                 blockHeight,
@@ -215,7 +244,7 @@ fun generateChunk(x: Long, y: Long) {
                 blocks[x+1, y],
                 blocks[x, y+1],
                 blocks[x-1, y]
-            )//.generateOctaves(4, 0.75, 2.0)
+            ).generateOctaves(4, 0.75, 2.0)
             synchronized(blocks) {
                 blocks[x, y] = block
             }
