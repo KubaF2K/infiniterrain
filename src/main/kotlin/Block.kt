@@ -1,13 +1,7 @@
-import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL33.*
-import java.nio.ByteBuffer
 import kotlin.math.cos
-import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
-
-fun fade(x: Float) = 6 * x.pow(5) - 15 * x.pow(4) + 10 * x.pow(3)
-fun lerp(t: Float, a1: Float, a2: Float) = (1-t) * a1 + t * a2
 
 val indexArrays = HashMap<Pair<Int, Int>, IntArray>()
 
@@ -34,45 +28,21 @@ fun getIndicesArray(width: Int, height: Int): IntArray {
     return intArray
 }
 
+fun createPerlinBlock(
+    chunksX: Int,
+    chunksY: Int,
+    chunkSize: Int,
+    seed: Long = Random.nextLong()
+): Block {
+    val random = Random(seed)
 
-class Block(
-    val chunksX: Int,
-    val chunksY: Int,
-    val chunkSize: Int,
-    seed: Long = Random.nextLong(),
-    topNeighbor: Block? = null,
-    rightNeighbor: Block? = null,
-    bottomNeighbor: Block? = null,
-    leftNeighbor: Block? = null
-) {
-    private val random = Random(seed)
-    
     val vectors: Array<FloatArray> =
-        (Array(chunksY + 1) { FloatArray(chunksX + 1) { random.nextFloat() * Math.PI.toFloat() * 2f } }).apply {
-            topNeighbor?.let {
-                for (x in 0..chunksX) {
-                    this[0][x] = it.vectors[chunksY][x]
-                }
-            }
-            rightNeighbor?.let {
-                for (y in 0..chunksY) {
-                    this[y][chunksX] = it.vectors[y][0]
-                }
-            }
-            bottomNeighbor?.let {
-                for (x in 0..chunksX) {
-                    this[chunksY][x] = it.vectors[0][x]
-                }
-            }
-            leftNeighbor?.let {
-                for (y in 0..chunksY) {
-                    this[y][0] = it.vectors[y][chunksY]
-                }
-            }
-        }
-    
-    val intensities: Array<FloatArray> = Array(chunksY * chunkSize) { y ->
-        FloatArray(chunksX * chunkSize) { x ->
+        (Array(chunksY + 1) { FloatArray(chunksX + 1) { random.nextFloat() * Math.PI.toFloat() * 2f } })
+
+    val block = Block(chunksX * chunkSize, chunksY * chunkSize)
+
+    for (y in 0..<chunksY*chunkSize) {
+        for (x in 0..<chunksX*chunkSize) {
             val chunkX = x / chunkSize
             val chunkY = y / chunkSize
 
@@ -96,145 +66,56 @@ class Block(
             val topLerp = lerp(xf, topLeftIntensity, topRightIntensity)
             val bottomLerp = lerp(xf, bottomLeftIntensity, bottomRightIntensity)
 
-            var finalValue = lerp(yf, topLerp, bottomLerp)
-
-            leftNeighbor?.let {
-                if (chunkX != 0) return@let
-
-                finalValue = lerp(
-                    xf,
-                    it.intensities[y][it.width-1 - a],
-                    finalValue
-                )
-            }
-            rightNeighbor?.let {
-                if (chunkX != chunksX-1) return@let
-
-                finalValue = lerp(
-                    xf,
-                    finalValue,
-                    it.intensities[y][chunkSize-1 - a]
-                )
-            }
-            topNeighbor?.let {
-                if (chunkY != chunksY-1) return@let
-
-                finalValue = lerp(
-                    yf,
-                    finalValue,
-                    it.intensities[chunkSize-1 - b][x]
-                )
-            }
-            bottomNeighbor?.let {
-                if (chunkY != 0) return@let
-
-                finalValue = lerp(
-                    yf,
-                    it.intensities[it.height-1 - b][x],
-                    finalValue
-                )
-            }
-            //TODO corners, ungenerated neighbors
-
-            return@FloatArray finalValue
+            block.intensities[x][y] = lerp(yf, topLerp, bottomLerp)
         }
     }
+    return block
+}
 
-
-    val width
-        get() = chunksX * chunkSize
-    val height
-        get() = chunksY * chunkSize
+class Block(
+    val width: Int,
+    val height: Int
+) {
+    val intensities: Array<FloatArray> = Array(height) { FloatArray(width) }
 
     val indicesCount
         get() = (width-1) * (height-1) * 6
 
-    fun getVerticesArray(): FloatArray {
-        val floatArray = FloatArray(width * height * 3)
-
-        val intensities = getMultipliedIntensities(0.01f)
-
+    fun add(intensities: Array<FloatArray>, strength: Float = 1f): Block {
         for (x in 0..<width) {
             for (y in 0..<height) {
-                floatArray[(x + y * width) * 3] = x/width.toFloat()*2f - 1f
-                floatArray[(x + y * width) * 3 + 1] = intensities[x][y]
-                floatArray[(x + y * width) * 3 + 2] = y/height.toFloat()*2f - 1f
+                this.intensities[x][y] += intensities[x][y] * strength
             }
         }
 
-        return floatArray
+        return this
     }
 
-    fun setGLObjects(vao: Int, vbo: Int, ebo: Int) {
-        glBindVertexArray(vao)
-
-        glBindBuffer(GL_ARRAY_BUFFER, vbo)
-        val vertices = getVerticesArray()
-        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-        val indices = getIndicesArray()
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.SIZE_BYTES, 0)
-        glEnableVertexAttribArray(0)
-
-        glBindVertexArray(0)
-    }
-
-    fun getIndicesArray(): IntArray = getIndicesArray(width, height)
-
-    fun getMultipliedIntensities(multiplier: Float) = intensities.map { column ->
-        column.map { intensity ->
-            intensity * multiplier
-        }.toFloatArray()
-    }.toTypedArray()
-
-
-    fun getNormalizedIntensities(): Array<FloatArray> {
-        var maxIntensity = intensities[0][0]
-        var minIntensity = intensities[0][0]
-
-        for (row in intensities) {
-            for (intensity in row) {
-                if (intensity > maxIntensity) {
-                    maxIntensity = intensity
-                }
-                if (intensity < minIntensity) {
-                    minIntensity = intensity
-                }
+    fun multiply(strength: Float): Block {
+        for (x in 0..<width) {
+            for (y in 0..<height) {
+                this.intensities[x][y] *= strength
             }
         }
 
-        return intensities.map { column ->
-             column.map { intensity ->
-                 if (minIntensity == maxIntensity) {
-                     0.5f
-                 } else {
-                     (intensity-minIntensity)/(maxIntensity-minIntensity)
-                 }
-             }.toFloatArray()
-        }.toTypedArray()
+        return this
     }
 
-    fun getBrightnessGLBuffer(): ByteBuffer {
-        val buffer = BufferUtils.createByteBuffer(width * height * 3)
-        for (row in getNormalizedIntensities()) {
-            for (intensity in row) {
-                val intensityByte = (intensity * 255).toInt().toByte()
-                buffer.put(intensityByte)
-                buffer.put(intensityByte)
-                buffer.put(intensityByte)
-            }
-        }
-        buffer.rewind()
-        return buffer
-    }
-    fun generateOctaves(count: Int, persistence: Float, lacunarity: Float): Block {
-        var newChunksX = chunksX
-        var newChunksY = chunksY
+    fun addFractalPerlinNoise(
+        count: Int,
+        persistence: Float,
+        lacunarity: Float,
+        startChunksX: Int,
+        startChunksY: Int,
+        startChunkSize: Int,
+        seed: Long = Random.nextLong()
+    ): Block {
+        val random = Random(seed)
 
-        var newChunkSize = chunkSize
+        var newChunksX = startChunksX
+        var newChunksY = startChunksY
+
+        var newChunkSize = startChunkSize
 
         var strength = 1f
 
@@ -257,7 +138,7 @@ class Block(
                 newChunksY++
             }
 
-            val octave = Block(newChunksX, newChunksY, newChunkSize, random.nextLong())
+            val octave = createPerlinBlock(newChunksX, newChunksY, newChunkSize, random.nextLong())
 
             add(octave.intensities, strength)
         }
@@ -265,11 +146,94 @@ class Block(
         return this
     }
 
-    fun add(intensities: Array<FloatArray>, strength: Float) {
+    fun lerpWithNeighbors(
+        depth: Int,
+        topNeighbor: Block? = null,
+        rightNeighbor: Block? = null,
+        bottomNeighbor: Block? = null,
+        leftNeighbor: Block? = null
+    ): Block {
+        //TODO check depth
+
         for (x in 0..<width) {
             for (y in 0..<height) {
-                this.intensities[x][y] += intensities[x][y] * strength
+                if (y < depth) topNeighbor?.let { neighbor ->
+                    intensities[y][x] = lerp(
+                        fade(y/(depth-1).toFloat()),
+                        neighbor.intensities[neighbor.height-1 - y][x],
+                        intensities[y][x]
+                    )
+                }
+                if (x > width-depth) rightNeighbor?.let { neighbor ->
+                    intensities[y][x] = lerp(
+                        fade((width-x)/(depth-1).toFloat()),
+                        intensities[y][x],
+                        neighbor.intensities[y][x - width + depth-1]
+                    )
+                }
+                if (y > height-depth) bottomNeighbor?.let { neighbor ->
+                    intensities[y][x] = lerp(
+                        fade((height-y)/(depth-1).toFloat()),
+                        intensities[y][x],
+                        neighbor.intensities[y - height + depth-1][x]
+                    )
+                }
+                if (x < depth) leftNeighbor?.let { neighbor ->
+                    intensities[y][x] = lerp(
+                        fade(x/(depth-1).toFloat()),
+                        neighbor.intensities[y][neighbor.width-1 - x],
+                        intensities[y][x]
+                    )
+                }
             }
         }
+        return this
     }
+
+    fun getVerticesArray(heightScale: Float = 1f): FloatArray {
+        val floatArray = FloatArray(width * height * 3)
+
+        for (x in 0..<width) {
+            for (y in 0..<height) {
+                floatArray[(x + y * width) * 3] = x/width.toFloat()*2f - 1f
+                floatArray[(x + y * width) * 3 + 1] = intensities[x][y] * heightScale
+                floatArray[(x + y * width) * 3 + 2] = y/height.toFloat()*2f - 1f
+            }
+        }
+
+        return floatArray
+    }
+
+    fun getIndicesArray(): IntArray = getIndicesArray(width, height)
+
+    fun setGLObjects(vao: Int, vbo: Int, ebo: Int, heightScale: Float = 1f) {
+        glBindVertexArray(vao)
+
+        glBindBuffer(GL_ARRAY_BUFFER, vbo)
+        val vertices = getVerticesArray(heightScale)
+        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+        val indices = getIndicesArray()
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.SIZE_BYTES, 0)
+        glEnableVertexAttribArray(0)
+
+        glBindVertexArray(0)
+    }
+
+//    fun getBrightnessGLBuffer(): ByteBuffer {
+//        val buffer = BufferUtils.createByteBuffer(width * height * 3)
+//        for (row in getNormalizedIntensities()) {
+//            for (intensity in row) {
+//                val intensityByte = (intensity * 255).toInt().toByte()
+//                buffer.put(intensityByte)
+//                buffer.put(intensityByte)
+//                buffer.put(intensityByte)
+//            }
+//        }
+//        buffer.rewind()
+//        return buffer
+//    }
 }

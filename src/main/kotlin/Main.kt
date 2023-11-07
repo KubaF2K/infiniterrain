@@ -15,6 +15,8 @@ var windowHeight = 600
 const val blockWidth = 5
 const val blockHeight = 5
 const val chunkSize = 100
+const val heightScale = 0.005f
+
 val rng = Random(1234)
 
 val camera = Camera(0f, 0f, 3f)
@@ -170,7 +172,7 @@ fun main() {
                     val vbo = glGenBuffers().apply { buffers.add(this) }
                     val ebo = glGenBuffers().apply { buffers.add(this) }
 
-                    block.setGLObjects(vao, vbo, ebo)
+                    block.setGLObjects(vao, vbo, ebo, heightScale)
                     blockGLObjects[coords] = vao
 
                     return@run vao
@@ -245,16 +247,20 @@ fun generateChunk(x: Long, y: Long) {
     if (blocks[x, y] == null && blockThreads[x, y]?.isAlive != true) {
         val thread = Thread {
 
-            val block = Block(
+            val block = createPerlinBlock(
                 blockWidth,
                 blockHeight,
                 chunkSize,
                 rng.nextLong(),
-                blocks[x, y-1],
-                blocks[x+1, y],
-                blocks[x, y+1],
-                blocks[x-1, y]
-            ).generateOctaves(4, 0.75f, 2f)
+            ).addFractalPerlinNoise(
+                4,
+                0.75f,
+                2f,
+                blockWidth,
+                blockHeight,
+                chunkSize,
+                rng.nextLong()
+            ).lerpWithNeighbors(chunkSize, blocks[x, y-1], blocks[x+1, y], blocks[x, y+1], blocks[x-1, y])
             synchronized(blocks) {
                 blocks[x, y] = block
             }

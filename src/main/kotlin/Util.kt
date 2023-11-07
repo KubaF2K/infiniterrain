@@ -3,6 +3,14 @@ import org.joml.Matrix4fc
 import org.joml.Vector3f
 import org.joml.Vector3fc
 import kotlin.math.PI
+import kotlin.math.pow
+
+fun fade(x: Float) = 6 * x.pow(5) - 15 * x.pow(4) + 10 * x.pow(3)
+
+/**
+ * Linearly interpolates between two values.
+ */
+fun lerp(t: Float, a1: Float, a2: Float) = (1-t) * a1 + t * a2
 
 /**
  * Returns the negative of the vector.
