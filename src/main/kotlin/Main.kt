@@ -4,7 +4,9 @@ import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33.*
 import Camera.CameraMovement.*
+import org.joml.Matrix3f
 import org.joml.Vector3f
+import kotlin.math.sin
 
 var deltaTime = 0f
 var lastFrameStartTime = 0f
@@ -31,7 +33,7 @@ val projection: Matrix4f
 var cursorX = cameraCursorLastX
 var cursorY = cameraCursorLastY
 
-val lightPosition = Vector3f(1.2f, 1f, 2f)
+val lightPosition = Vector3f(1.2f, 2f, 2f)
 
 val blocks = HashMap<LCoords, Block>()
 val blockGLObjects = HashMap<LCoords, Int>()
@@ -186,6 +188,8 @@ fun main() {
         deltaTime = now - lastFrameStartTime
         lastFrameStartTime = now
 
+        lightPosition.z = 2f * sin(now)
+
         processInput(window)
 
         val view = camera.viewMatrix
@@ -208,13 +212,16 @@ fun main() {
                 val model = Matrix4f()
                     .translate(coords.first * 2.toFloat(), -0.5f, coords.second * 2.toFloat())
 
+                val normalMatrix = model.normal(Matrix3f())
+
                 shader.use()
                 shader["model"] = model
                 shader["view"] = view
                 shader["projection"] = projection
                 shader["lightColor"] = Vector3f(1f, 1f, 1f)
                 shader["objectColor"] = Vector3f(0f, 0.8f, 0f)
-
+                shader["lightPosition"] = lightPosition
+                shader["normalMatrix"] = normalMatrix
                 glBindVertexArray(vao)
                 glDrawElements(GL_TRIANGLES, block.indicesCount, GL_UNSIGNED_INT, 0)
             }

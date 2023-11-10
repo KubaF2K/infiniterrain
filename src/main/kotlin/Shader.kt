@@ -1,3 +1,4 @@
+import org.joml.Matrix3fc
 import org.joml.Matrix4fc
 import org.joml.Vector3fc
 import org.lwjgl.BufferUtils
@@ -62,6 +63,12 @@ class Shader(vertexPath: String, fragmentPath: String): Closeable {
         matrix4fBuffer.rewind()
         value.get(matrix4fBuffer)
         glUniformMatrix4fv(glGetUniformLocation(id, name), false, matrix4fBuffer)
+    }
+    operator fun set(name: CharSequence, value: Matrix3fc) {
+        matrix4fBuffer.rewind()
+        value.get(matrix4fBuffer)
+        glUniformMatrix3fv(glGetUniformLocation(id, name), false, matrix4fBuffer)
+
     }
     operator fun set(name: CharSequence, value: Vector3fc) {
         glUniform3f(glGetUniformLocation(id, name), value.x(), value.y(), value.z())

@@ -1,3 +1,4 @@
+import org.joml.Vector3f
 import org.lwjgl.opengl.GL33.*
 import kotlin.math.cos
 import kotlin.math.sin
@@ -191,13 +192,47 @@ class Block(
     }
 
     fun getVerticesArray(heightScale: Float = 1f): FloatArray {
-        val floatArray = FloatArray(width * height * 3)
+        val floatArray = FloatArray(width * height * 6)
 
-        for (x in 0..<width) {
-            for (y in 0..<height) {
-                floatArray[(x + y * width) * 3] = x/width.toFloat()*2f - 1f
-                floatArray[(x + y * width) * 3 + 1] = intensities[x][y] * heightScale
-                floatArray[(x + y * width) * 3 + 2] = y/height.toFloat()*2f - 1f
+        for (x in 0..<width step 2) {
+            for (y in 0..<height step 2) {
+                val topLeft = Vector3f(x/width.toFloat()*2f - 1f, intensities[x][y] * heightScale, y/height.toFloat()*2f - 1f)
+                val topRight = Vector3f((x+1)/width.toFloat()*2f - 1f, intensities[x+1][y] * heightScale, y/height.toFloat()*2f - 1f)
+                val bottomLeft = Vector3f(x/width.toFloat()*2f - 1f, intensities[x][y+1] * heightScale, (y+1)/height.toFloat()*2f - 1f)
+                val bottomRight = Vector3f((x+1)/width.toFloat()*2f - 1f, intensities[x+1][y+1] * heightScale, (y+1)/height.toFloat()*2f - 1f)
+
+                val u = topRight - topLeft
+                val v = bottomLeft - topLeft
+
+                val normal = (u cross v).normalize()
+
+                floatArray[(x + y * width) * 6] = topLeft.x()
+                floatArray[(x + y * width) * 6 + 1] = topLeft.y()
+                floatArray[(x + y * width) * 6 + 2] = topLeft.z()
+                floatArray[(x + y * width) * 6 + 3] = normal.x()
+                floatArray[(x + y * width) * 6 + 4] = normal.y()
+                floatArray[(x + y * width) * 6 + 5] = normal.z()
+
+                floatArray[((x+1) + y * width) * 6] = topRight.x()
+                floatArray[((x+1) + y * width) * 6 + 1] = topRight.y()
+                floatArray[((x+1) + y * width) * 6 + 2] = topRight.z()
+                floatArray[((x+1) + y * width) * 6 + 3] = normal.x()
+                floatArray[((x+1) + y * width) * 6 + 4] = normal.y()
+                floatArray[((x+1) + y * width) * 6 + 5] = normal.z()
+
+                floatArray[(x + (y+1) * width) * 6] = bottomLeft.x()
+                floatArray[(x + (y+1) * width) * 6 + 1] = bottomLeft.y()
+                floatArray[(x + (y+1) * width) * 6 + 2] = bottomLeft.z()
+                floatArray[(x + (y+1) * width) * 6 + 3] = normal.x()
+                floatArray[(x + (y+1) * width) * 6 + 4] = normal.y()
+                floatArray[(x + (y+1) * width) * 6 + 5] = normal.z()
+
+                floatArray[((x+1) + (y+1) * width) * 6] = bottomRight.x()
+                floatArray[((x+1) + (y+1) * width) * 6 + 1] = bottomRight.y()
+                floatArray[((x+1) + (y+1) * width) * 6 + 2] = bottomRight.z()
+                floatArray[((x+1) + (y+1) * width) * 6 + 3] = normal.x()
+                floatArray[((x+1) + (y+1) * width) * 6 + 4] = normal.y()
+                floatArray[((x+1) + (y+1) * width) * 6 + 5] = normal.z()
             }
         }
 
@@ -217,8 +252,10 @@ class Block(
         val indices = getIndicesArray()
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.SIZE_BYTES, 0)
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 0)
         glEnableVertexAttribArray(0)
+        glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
+        glEnableVertexAttribArray(1)
 
         glBindVertexArray(0)
     }
