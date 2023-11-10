@@ -1,4 +1,5 @@
-import org.joml.Matrix4f
+import org.joml.Matrix4fc
+import org.joml.Vector3fc
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL33.*
 import java.io.Closeable
@@ -57,9 +58,12 @@ class Shader(vertexPath: String, fragmentPath: String): Closeable {
     operator fun set(name: CharSequence, value: Float) {
         glUniform1f(glGetUniformLocation(id, name), value)
     }
-    operator fun set(name: CharSequence, value: Matrix4f) {
+    operator fun set(name: CharSequence, value: Matrix4fc) {
         matrix4fBuffer.rewind()
         value.get(matrix4fBuffer)
         glUniformMatrix4fv(glGetUniformLocation(id, name), false, matrix4fBuffer)
+    }
+    operator fun set(name: CharSequence, value: Vector3fc) {
+        glUniform3f(glGetUniformLocation(id, name), value.x(), value.y(), value.z())
     }
 }

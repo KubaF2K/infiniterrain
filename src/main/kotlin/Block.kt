@@ -222,18 +222,4 @@ class Block(
 
         glBindVertexArray(0)
     }
-
-//    fun getBrightnessGLBuffer(): ByteBuffer {
-//        val buffer = BufferUtils.createByteBuffer(width * height * 3)
-//        for (row in getNormalizedIntensities()) {
-//            for (intensity in row) {
-//                val intensityByte = (intensity * 255).toInt().toByte()
-//                buffer.put(intensityByte)
-//                buffer.put(intensityByte)
-//                buffer.put(intensityByte)
-//            }
-//        }
-//        buffer.rewind()
-//        return buffer
-//    }
 }
