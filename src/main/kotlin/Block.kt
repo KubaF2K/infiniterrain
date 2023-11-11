@@ -88,15 +88,16 @@ class Block(
         get() = (width-1) * (height-1) * 6
 
     /**
-     * Adds the given intensities to this block. The intensities are required to be the same size as this block.
+     * Adds the given intensities to this block. The intensities are required to be the same size or larger than this
+     * block.
      * @param intensities The intensities to add
      * @param strength The strength to add the intensities with
      * @return This block
      * @throws IllegalArgumentException if the intensities are the wrong size
      */
     fun add(intensities: Array<FloatArray>, strength: Float = 1f): Block {
-        if (intensities.size != width || intensities[0].size != height)
-            throw IllegalArgumentException("Intensities must be the same size as this block")
+        if (intensities.size < width || intensities[0].size < height)
+            throw IllegalArgumentException("Intensities must be the same size or larger than this block")
 
         for (x in 0..<width) {
             for (y in 0..<height) {
