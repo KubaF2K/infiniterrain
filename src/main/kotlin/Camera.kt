@@ -27,6 +27,7 @@ class Camera(
 
     val front = Vector3f(0f, 0f, -1f)
     val right = Vector3f()
+
     val worldUp = Vector3f(up)
     var movementSpeed = SPEED
     var mouseSensitivity = SENSITIVITY
@@ -49,9 +50,17 @@ class Camera(
         pitch
     )
 
+    /**
+     * The view matrix calculated using Euler Angles and the LookAt Matrix.
+     */
     val viewMatrix: Matrix4f
         get() = Matrix4f().lookAt(position, position + front, up)
 
+    /**
+     * Processes camera movement.
+     * @param direction the direction to move the camera in
+     * @param deltaTime the delta time between frames
+     */
     fun processKeyboard(direction: CameraMovement, deltaTime: Float) {
         val velocity = movementSpeed * deltaTime
         position.add(
@@ -64,6 +73,12 @@ class Camera(
         )
     }
 
+    /**
+     * Processes camera angle change.
+     * @param xOffset the offset of the mouse on the x-axis
+     * @param yOffset the offset of the mouse on the y-axis
+     * @param constrainPitch whether to constrain the pitch
+     */
     fun processMouseMovement(xOffset: Float, yOffset: Float, constrainPitch: Boolean = true) {
         yaw = (yaw + xOffset * mouseSensitivity) % 360f
         pitch = (pitch - yOffset * mouseSensitivity) % 360f
@@ -75,6 +90,10 @@ class Camera(
         updateCameraVectors()
     }
 
+    /**
+     * Processes camera zoom.
+     * @param yOffset the scroll offset
+     */
     fun processMouseScroll(yOffset: Float) {
         zoom -= yOffset
         zoom = max(1f, min(45f, zoom))

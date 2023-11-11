@@ -70,15 +70,34 @@ fun createPerlinBlock(
 }
 
 class Block(
+    /**
+     * The width of this block in vertices.
+     */
     val width: Int,
+    /**
+     * The height of this block in vertices.
+     */
     val height: Int
 ) {
     val intensities: Array<FloatArray> = Array(height) { FloatArray(width) }
 
+    /**
+     * The number of indices required to draw all the triangles in this block.
+     */
     val indicesCount
         get() = (width-1) * (height-1) * 6
 
+    /**
+     * Adds the given intensities to this block. The intensities are required to be the same size as this block.
+     * @param intensities The intensities to add
+     * @param strength The strength to add the intensities with
+     * @return This block
+     * @throws IllegalArgumentException if the intensities are the wrong size
+     */
     fun add(intensities: Array<FloatArray>, strength: Float = 1f): Block {
+        if (intensities.size != width || intensities[0].size != height)
+            throw IllegalArgumentException("Intensities must be the same size as this block")
+
         for (x in 0..<width) {
             for (y in 0..<height) {
                 this.intensities[x][y] += intensities[x][y] * strength
@@ -88,6 +107,11 @@ class Block(
         return this
     }
 
+    /**
+     * Multiplies all intensities in this block by the given strength.
+     * @param strength The strength to multiply by
+     * @return This block
+     */
     fun multiply(strength: Float): Block {
         for (x in 0..<width) {
             for (y in 0..<height) {
@@ -98,6 +122,18 @@ class Block(
         return this
     }
 
+    /**
+     * Adds fractal Perlin noise to this block. The parameters determine the size of the noise.
+     * @param count The number of octaves of noise to add
+     * @param persistence The persistence of the noise
+     * @param lacunarity The lacunarity of the noise
+     * @param startChunksX The number of chunks of noise to start with in the x direction
+     * @param startChunksY The number of chunks of noise to start with in the y direction
+     * @param startChunkSize The size of the chunks of noise to start with
+     * @param seed The seed for the random number generator (default: random)
+     * @return This block
+     * @throws IllegalArgumentException if lacunarity is 0
+     */
     fun addFractalPerlinNoise(
         count: Int,
         persistence: Float,
@@ -107,6 +143,9 @@ class Block(
         startChunkSize: Int,
         seed: Long = Random.nextLong()
     ): Block {
+        if (lacunarity == 0f)
+            throw IllegalArgumentException("Lacunarity cannot be 0")
+
         val random = Random(seed)
 
         var newChunksX = startChunksX
@@ -143,6 +182,19 @@ class Block(
         return this
     }
 
+    /**
+     * Linearly interpolates the intensities of this block with the intensities of its neighbors for smooth transitions
+     * between them. The neighbors are required to be the same size on the touching edge as this block. The depth
+     * parameter determines how deep into the block to lerp. TODO: fix corners
+     * @param depth How deep into the block to lerp
+     * @param topNeighbor The block above this one
+     * @param rightNeighbor The block to the right of this one
+     * @param bottomNeighbor The block below this one
+     * @param leftNeighbor The block to the left of this one
+     * @return This block
+     * @throws IllegalArgumentException if depth is less than 1 or more than the width or height of the block
+     * @throws IllegalArgumentException if any of the neighbors are the wrong size (or smaller than the depth)
+     */
     fun lerpWithNeighbors(
         depth: Int,
         topNeighbor: Block? = null,
@@ -150,7 +202,32 @@ class Block(
         bottomNeighbor: Block? = null,
         leftNeighbor: Block? = null
     ): Block {
-        //TODO check depth
+        if (depth < 1 || depth > width || depth > height)
+            throw IllegalArgumentException("Depth must be between 1 and the width/height of the block")
+        topNeighbor?.let {
+            if (topNeighbor.width != width || topNeighbor.height < depth)
+                throw IllegalArgumentException(
+                    "Top neighbor must be the same width as this block and at least as tall as the depth"
+                )
+        }
+        rightNeighbor?.let {
+            if (rightNeighbor.height != height || rightNeighbor.width < depth)
+                throw IllegalArgumentException(
+                    "Right neighbor must be the same height as this block and at least as wide as the depth"
+                )
+        }
+        bottomNeighbor?.let {
+            if (bottomNeighbor.width != width || bottomNeighbor.height < depth)
+                throw IllegalArgumentException(
+                    "Bottom neighbor must be the same width as this block and at least as tall as the depth"
+                )
+        }
+        leftNeighbor?.let {
+            if (leftNeighbor.height != height || leftNeighbor.width < depth)
+                throw IllegalArgumentException(
+                    "Left neighbor must be the same height as this block and at least as wide as the depth"
+                )
+        }
 
         for (x in 0..<width) {
             for (y in 0..<height) {
@@ -187,7 +264,7 @@ class Block(
         return this
     }
 
-    fun getVerticesArrayWithVertexNormals(heightScale: Float = 1f): FloatArray {
+    private fun getVerticesArrayWithVertexNormals(heightScale: Float = 1f): FloatArray {
         val floatArray = FloatArray(width * height * 6)
 
         for (x in 0..<width) {
@@ -199,7 +276,7 @@ class Block(
         return floatArray
     }
 
-    fun getVerticesArrayWithFaceNormals(heightScale: Float = 1f): FloatArray {
+    private fun getVerticesArrayWithFaceNormals(heightScale: Float = 1f): FloatArray {
         val floatArray = FloatArray(width * height * 6)
 
         for (x in 0..<width step 2) {
@@ -247,12 +324,25 @@ class Block(
         return floatArray
     }
 
-    fun getIndicesArray(): IntArray = getIndicesArray(width, height)
+    private fun getIndicesArray(): IntArray = getIndicesArray(width, height)
 
-    fun setGLObjects(vao: Int, vbo: Int, ebo: Int, vertexNormals: Boolean = false, heightScale: Float = 1f) {
-        glBindVertexArray(vao)
+    /**
+     * Sets the GL objects for this block. If any of the parameters are null, new objects will be created.
+     * @return A Triple(vao, vbo, ebo) containing IDs of the GL objects
+     * @param vao Vertex Array Object ID
+     * @param vbo Vertex Buffer Object ID
+     * @param ebo Element Buffer Object ID
+     * @param vertexNormals Whether to generate vertex normals or face normals
+     * @param heightScale How much to scale the height by
+     */
+    fun setGLObjects(vao: Int? = null, vbo: Int? = null, ebo: Int? = null, vertexNormals: Boolean = false, heightScale: Float = 1f): Triple<Int, Int, Int> {
+        val lVao = vao ?: glGenVertexArrays()
+        val lVbo = vbo ?: glGenBuffers()
+        val lEbo = ebo ?: glGenBuffers()
 
-        glBindBuffer(GL_ARRAY_BUFFER, vbo)
+        glBindVertexArray(lVao)
+
+        glBindBuffer(GL_ARRAY_BUFFER, lVbo)
         val vertices =
             if (vertexNormals)
                 getVerticesArrayWithVertexNormals(heightScale)
@@ -261,7 +351,7 @@ class Block(
 
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lEbo)
         val indices = getIndicesArray()
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
 
@@ -271,5 +361,7 @@ class Block(
         glEnableVertexAttribArray(1)
 
         glBindVertexArray(0)
+
+        return Triple(lVao, lVbo, lEbo)
     }
 }
