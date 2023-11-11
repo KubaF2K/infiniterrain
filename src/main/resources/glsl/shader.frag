@@ -13,7 +13,7 @@ void main() {
     vec3 ambient = ambientStrength * lightColor;
 
     vec3 normalized = normalize(normal);
-    vec3 lightDirection = normalize(fragPosition - lightPosition);
+    vec3 lightDirection = normalize(lightPosition - fragPosition);
     float diff = max(dot(normalized, lightDirection), 0.0f);
     vec3 diffuse = diff * lightColor;
 

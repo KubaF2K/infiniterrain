@@ -203,7 +203,7 @@ fun main() {
                     val vbo = glGenBuffers().apply { buffers.add(this) }
                     val ebo = glGenBuffers().apply { buffers.add(this) }
 
-                    block.setGLObjects(vao, vbo, ebo, heightScale)
+                    block.setGLObjects(vao, vbo, ebo, heightScale = heightScale)
                     blockGLObjects[coords] = vao
 
                     return@run vao

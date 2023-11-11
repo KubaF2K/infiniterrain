@@ -6,21 +6,17 @@ import kotlin.random.Random
 
 val indexArrays = HashMap<Pair<Int, Int>, IntArray>()
 
-fun getIndicesArray(width: Int, height: Int): IntArray {
-    indexArrays[width, height]?.let {
-        return it
-    }
+fun getIndicesArray(width: Int, height: Int): IntArray = indexArrays[width, height] ?: run {
+    val intArray = IntArray((width - 1) * (height - 1) * 6)
 
-    val intArray = IntArray((width-1) * (height-1) * 6)
-
-    for (x in 0..width-2) {
-        for (y in 0..height-2) {
-            intArray[(x + y * (width-1)) * 6] = x + y * width
-            intArray[(x + y * (width-1)) * 6 + 1] = x + (y+1) * width
-            intArray[(x + y * (width-1)) * 6 + 2] = x+1 + y * width
-            intArray[(x + y * (width-1)) * 6 + 3] = x+1 + y * width
-            intArray[(x + y * (width-1)) * 6 + 4] = x + (y+1) * width
-            intArray[(x + y * (width-1)) * 6 + 5] = x+1 + (y+1) * width
+    for (x in 0..width - 2) {
+        for (y in 0..height - 2) {
+            intArray[(x + y * (width - 1)) * 6] = x + y * width
+            intArray[(x + y * (width - 1)) * 6 + 1] = x + (y + 1) * width
+            intArray[(x + y * (width - 1)) * 6 + 2] = x + 1 + y * width
+            intArray[(x + y * (width - 1)) * 6 + 3] = x + 1 + y * width
+            intArray[(x + y * (width - 1)) * 6 + 4] = x + (y + 1) * width
+            intArray[(x + y * (width - 1)) * 6 + 5] = x + 1 + (y + 1) * width
         }
     }
 
@@ -191,7 +187,19 @@ class Block(
         return this
     }
 
-    fun getVerticesArray(heightScale: Float = 1f): FloatArray {
+    fun getVerticesArrayWithVertexNormals(heightScale: Float = 1f): FloatArray {
+        val floatArray = FloatArray(width * height * 6)
+
+        for (x in 0..<width) {
+            for (y in 0..<height) {
+            // TODO
+            }
+        }
+
+        return floatArray
+    }
+
+    fun getVerticesArrayWithFaceNormals(heightScale: Float = 1f): FloatArray {
         val floatArray = FloatArray(width * height * 6)
 
         for (x in 0..<width step 2) {
@@ -201,8 +209,8 @@ class Block(
                 val bottomLeft = Vector3f(x/width.toFloat()*2f - 1f, intensities[x][y+1] * heightScale, (y+1)/height.toFloat()*2f - 1f)
                 val bottomRight = Vector3f((x+1)/width.toFloat()*2f - 1f, intensities[x+1][y+1] * heightScale, (y+1)/height.toFloat()*2f - 1f)
 
-                val u = topRight - topLeft
-                val v = bottomLeft - topLeft
+                val u = topLeft - topRight
+                val v = bottomLeft - topRight
 
                 val normal = (u cross v).normalize()
 
@@ -241,11 +249,16 @@ class Block(
 
     fun getIndicesArray(): IntArray = getIndicesArray(width, height)
 
-    fun setGLObjects(vao: Int, vbo: Int, ebo: Int, heightScale: Float = 1f) {
+    fun setGLObjects(vao: Int, vbo: Int, ebo: Int, vertexNormals: Boolean = false, heightScale: Float = 1f) {
         glBindVertexArray(vao)
 
         glBindBuffer(GL_ARRAY_BUFFER, vbo)
-        val vertices = getVerticesArray(heightScale)
+        val vertices =
+            if (vertexNormals)
+                getVerticesArrayWithVertexNormals(heightScale)
+            else
+                getVerticesArrayWithFaceNormals(heightScale)
+
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
