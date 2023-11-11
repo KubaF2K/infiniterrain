@@ -210,7 +210,7 @@ fun main() {
                 }
 
                 val model = Matrix4f()
-                    .translate(coords.first * 2.toFloat(), -0.5f, coords.second * 2.toFloat())
+                    .translate(coords.first * 2f, -0.5f, coords.second * 2f)
 
                 val normalMatrix = model.normal(Matrix3f())
 
@@ -278,7 +278,7 @@ fun generateChunk(x: Long, y: Long) {
                 blockHeight,
                 chunkSize,
                 rng.nextLong()
-            ).lerpWithNeighbors(chunkSize, blocks[x, y-1], blocks[x+1, y], blocks[x, y+1], blocks[x-1, y])
+            ).lerpWithNeighbors(chunkSize/2, blocks[x, y-1], blocks[x+1, y], blocks[x, y+1], blocks[x-1, y])
             synchronized(blocks) {
                 blocks[x, y] = block
             }

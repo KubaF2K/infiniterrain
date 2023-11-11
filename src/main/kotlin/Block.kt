@@ -233,31 +233,31 @@ class Block(
         for (x in 0..<width) {
             for (y in 0..<height) {
                 if (y < depth) topNeighbor?.let { neighbor ->
-                    intensities[y][x] = lerp(
+                    intensities[x][y] = lerp(
                         fade(y/(depth-1).toFloat()),
-                        neighbor.intensities[neighbor.height-1 - y][x],
-                        intensities[y][x]
+                        neighbor.intensities[x][neighbor.height-1 - y],
+                        intensities[x][y]
                     )
                 }
                 if (x > width-depth) rightNeighbor?.let { neighbor ->
-                    intensities[y][x] = lerp(
+                    intensities[x][y] = lerp(
                         fade((width-x)/(depth-1).toFloat()),
-                        intensities[y][x],
-                        neighbor.intensities[y][x - width + depth-1]
+                        neighbor.intensities[-x + width + 1][y],
+                        intensities[x][y]
                     )
                 }
                 if (y > height-depth) bottomNeighbor?.let { neighbor ->
-                    intensities[y][x] = lerp(
+                    intensities[x][y] = lerp(
                         fade((height-y)/(depth-1).toFloat()),
-                        intensities[y][x],
-                        neighbor.intensities[y - height + depth-1][x]
+                        neighbor.intensities[x][-y + height + 1],
+                        intensities[x][y]
                     )
                 }
                 if (x < depth) leftNeighbor?.let { neighbor ->
-                    intensities[y][x] = lerp(
+                    intensities[x][y] = lerp(
                         fade(x/(depth-1).toFloat()),
-                        neighbor.intensities[y][neighbor.width-1 - x],
-                        intensities[y][x]
+                        neighbor.intensities[neighbor.width-1 - x][y],
+                        intensities[x][y]
                     )
                 }
             }
@@ -282,10 +282,10 @@ class Block(
 
         for (x in 0..<width step 2) {
             for (y in 0..<height step 2) {
-                val topLeft = Vector3f(x/width.toFloat()*2f - 1f, intensities[x][y] * heightScale, y/height.toFloat()*2f - 1f)
-                val topRight = Vector3f((x+1)/width.toFloat()*2f - 1f, intensities[x+1][y] * heightScale, y/height.toFloat()*2f - 1f)
-                val bottomLeft = Vector3f(x/width.toFloat()*2f - 1f, intensities[x][y+1] * heightScale, (y+1)/height.toFloat()*2f - 1f)
-                val bottomRight = Vector3f((x+1)/width.toFloat()*2f - 1f, intensities[x+1][y+1] * heightScale, (y+1)/height.toFloat()*2f - 1f)
+                val topLeft = Vector3f(x/(width-1).toFloat()*2f - 1f, intensities[x][y] * heightScale, y/(height-1).toFloat()*2f - 1f)
+                val topRight = Vector3f((x+1)/(width-1).toFloat()*2f - 1f, intensities[x+1][y] * heightScale, y/(height-1).toFloat()*2f - 1f)
+                val bottomLeft = Vector3f(x/(width-1).toFloat()*2f - 1f, intensities[x][y+1] * heightScale, (y+1)/(height-1).toFloat()*2f - 1f)
+                val bottomRight = Vector3f((x+1)/(width-1).toFloat()*2f - 1f, intensities[x+1][y+1] * heightScale, (y+1)/(height-1).toFloat()*2f - 1f)
 
                 val u = topLeft - topRight
                 val v = bottomLeft - topRight
