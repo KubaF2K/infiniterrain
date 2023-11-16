@@ -4,15 +4,19 @@ import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33.*
 import Camera.CameraMovement.*
+import org.joml.Intersectionf.*
 import org.joml.Matrix3f
+import org.joml.Matrix4fc
 import org.joml.Vector3f
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 import kotlin.math.sin
 
 var deltaTime = 0f
 var lastFrameStartTime = 0f
 
-var windowWidth = 800
-var windowHeight = 600
+var currentWindowWidth = 800
+var currentWindowHeight = 600
 
 const val blockWidth = 5
 const val blockHeight = 5
@@ -21,14 +25,14 @@ const val heightScale = 0.005f
 
 val rng = Random(1234)
 
-val camera = Camera(0f, 0f, 3f)
-var cameraCursorLastX = windowWidth.toFloat()/2
-var cameraCursorLastY = windowHeight.toFloat()/2
+val camera = Camera(0f, .5f, 3f)
+var cameraCursorLastX = currentWindowWidth.toFloat()/2
+var cameraCursorLastY = currentWindowHeight.toFloat()/2
 var firstMouse = true
 
 val projection: Matrix4f
     get() = Matrix4f()
-        .perspective(45f.toRadians(), windowWidth.toFloat() / windowHeight.toFloat(), 0.1f, 100f)
+        .perspective(45f.toRadians(), currentWindowWidth.toFloat() / currentWindowHeight.toFloat(), 0.1f, 100f)
 
 var cursorX = cameraCursorLastX
 var cursorY = cameraCursorLastY
@@ -52,7 +56,7 @@ fun main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE)
 
-    val window = glfwCreateWindow(windowWidth, windowHeight, "helo perlin", 0, 0)
+    val window = glfwCreateWindow(currentWindowWidth, currentWindowHeight, "helo perlin", 0, 0)
     if (window == 0L) {
         println("Failed to create GLFW window")
         glfwTerminate()
@@ -61,9 +65,9 @@ fun main() {
 
     glfwMakeContextCurrent(window)
     glfwSetFramebufferSizeCallback(window) { _, cWidth, cHeight ->
-        windowWidth = cWidth
-        windowHeight = cHeight
-        glViewport(0, 0, windowWidth, windowHeight)
+        currentWindowWidth = cWidth
+        currentWindowHeight = cHeight
+        glViewport(0, 0, currentWindowWidth, currentWindowHeight)
     }
     glfwSetCursorPosCallback(window) { _, xPos, yPos ->
         cursorX = xPos.toFloat()
@@ -107,11 +111,7 @@ fun main() {
     glfwSetMouseButtonCallback(window) { _, button, action, mods ->
         if (action == GLFW_PRESS) when (button) {
             GLFW_MOUSE_BUTTON_LEFT -> {
-                println(
-                    (projection * camera.viewMatrix)
-                        .unproject(cursorX, cursorY, 0f, intArrayOf(0, 0, windowWidth, windowHeight), Vector3f())
-                    //TODO
-                )
+                println(getWorldCoordsFromWindowCoords())
             }
         }
     }
@@ -210,7 +210,7 @@ fun main() {
                 }
 
                 val model = Matrix4f()
-                    .translate(coords.first * 2f, -0.5f, coords.second * 2f)
+                    .translate(coords.first * 2f, 0f, coords.second * 2f)
 
                 val normalMatrix = model.normal(Matrix3f())
 
@@ -287,4 +287,35 @@ fun generateChunk(x: Long, y: Long) {
         blockThreads[x, y] = thread
         thread.start()
     }
+}
+
+/**
+ * Returns the world coordinates of the point where the ray from the given window coordinates intersects the xz-plane.
+ * @param projectionMatrix the projection matrix (default: the current projection matrix)
+ * @param viewMatrix the view matrix (default: the camera view matrix)
+ * @param windowX the x window coordinate (default: current cursor x-coordinate)
+ * @param windowY the y window coordinate (default: current cursor y-coordinate)
+ * @param windowWidth the window width (default: current window width)
+ * @param windowHeight the window height (default: current window height)
+ * @return the world xz coordinates of the point where the ray from the given window coordinates intersects the xz-plane
+ * or null if the ray doesn't intersect the xz-plane
+ */
+fun getWorldCoordsFromWindowCoords(
+    projectionMatrix: Matrix4fc = projection,
+    viewMatrix: Matrix4fc = camera.viewMatrix,
+    windowX: Float = cursorX,
+    windowY: Float = cursorY,
+    windowWidth: Int = currentWindowWidth,
+    windowHeight: Int = currentWindowHeight
+): FCoords? {
+    val position = Vector3f()
+    val direction = Vector3f()
+    (projectionMatrix * viewMatrix)
+        .unprojectRay(windowX, windowHeight - windowY, intArrayOf(0, 0, windowWidth, windowHeight), position, direction)
+    val offset = intersectRayPlane(position, direction, Vector3f(), Vector3f(0f, 1f, 0f), 0f)
+
+    if (offset == -1f) return null
+
+    position.add(direction.mul(offset))
+    return Pair(position.x, position.z)
 }
