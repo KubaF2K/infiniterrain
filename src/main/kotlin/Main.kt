@@ -48,6 +48,7 @@ val blockThreads = ConcurrentHashMap<LCoords, Thread>()
 val missingBlocks = ConcurrentHashMap.newKeySet<LCoords>()//HashSet<LCoords>()
 val rawBlocks = ConcurrentHashMap<LCoords, Block>()
 val blockGLObjects = HashMap<LCoords, Int>()
+val blockVertexArrays = ConcurrentHashMap<LCoords, FloatArray>()
 val blockTextures = HashMap<LCoords, Int>()
 
 var mouseLocked = false
@@ -125,6 +126,13 @@ fun main() {
                     if (blockY < 0) blockY--
                     val blockCoords = Pair(blockX/2, blockY/2)
                     println(blockCoords)
+                    blocks.remove(blockCoords)
+                    blockVertexArrays.remove(blockCoords)
+                    blockGLObjects[blockCoords]?.let { vaoCoords ->
+                        glDeleteVertexArrays(vaoCoords)
+                        blockGLObjects.remove(blockCoords)
+                        //TODO buffer memory leak?
+                    }
                 }
             }
         }
@@ -200,8 +208,7 @@ fun main() {
 
     Thread {
         while (generatingBlocks.get()) {
-            val missingBlocksCopy = missingBlocks.toList()
-            for (coords in missingBlocksCopy) {
+            for (coords in missingBlocks) {
                 if (blocks.containsKey(coords)) {
                     missingBlocks.remove(coords)
                     continue
@@ -220,6 +227,10 @@ fun main() {
                         bottomNeighbor,
                         leftNeighbor
                     )
+
+                    Thread {
+                        blockVertexArrays[coords] = it.getVertexArrayWithFaceNormals(heightScale)
+                    }.start()
 
                     blocks[coords] = it
 
@@ -291,8 +302,6 @@ fun main() {
 
         missingBlocks.addAll(currentMissingBlocks)
 
-        //TODO culling źle ucina
-        //TODO lerpowanie zwiesza
 
 //        if (!blocks.contains(x, y)) {
 //            if (blockThreads[x, y]?.isAlive == true) {
@@ -340,13 +349,25 @@ fun main() {
 
         for (coords in visibleBlocks) {
             val block = blocks[coords] ?: continue
-            //TODO liczenie vertów w osobnym wątku
+            val vertexArray = blockVertexArrays[coords] ?: continue
             val vao = blockGLObjects[coords] ?: run {
                 val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
                 val vbo = glGenBuffers().apply { buffers.add(this) }
                 val ebo = glGenBuffers().apply { buffers.add(this) }
 
-                block.setGLObjects(vao, vbo, ebo, heightScale = heightScale)
+                glBindVertexArray(vao)
+
+                glBindBuffer(GL_ARRAY_BUFFER, vbo)
+                glBufferData(GL_ARRAY_BUFFER, vertexArray, GL_STATIC_DRAW)
+
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER, block.getIndicesArray(), GL_STATIC_DRAW)
+
+                glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 0)
+                glEnableVertexAttribArray(0)
+                glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
+                glEnableVertexAttribArray(1)
+
                 blockGLObjects[coords] = vao
 
                 return@run vao

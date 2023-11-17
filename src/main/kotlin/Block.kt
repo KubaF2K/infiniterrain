@@ -1,5 +1,4 @@
 import org.joml.Vector3f
-import org.lwjgl.opengl.GL33.*
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -265,7 +264,7 @@ class Block(
         return this
     }
 
-    private fun getVerticesArrayWithVertexNormals(heightScale: Float = 1f): FloatArray {
+    fun getVertexArrayWithVertexNormals(heightScale: Float = 1f): FloatArray {
         val floatArray = FloatArray(width * height * 6)
 
         for (x in 0..<width) {
@@ -277,7 +276,7 @@ class Block(
         return floatArray
     }
 
-    private fun getVerticesArrayWithFaceNormals(heightScale: Float = 1f): FloatArray {
+    fun getVertexArrayWithFaceNormals(heightScale: Float = 1f): FloatArray {
         val floatArray = FloatArray(width * height * 6)
 
         for (x in 0..<width step 2) {
@@ -325,44 +324,5 @@ class Block(
         return floatArray
     }
 
-    private fun getIndicesArray(): IntArray = getIndicesArray(width, height)
-
-    /**
-     * Sets the GL objects for this block. If any of the parameters are null, new objects will be created.
-     * @return A Triple(vao, vbo, ebo) containing IDs of the GL objects
-     * @param vao Vertex Array Object ID
-     * @param vbo Vertex Buffer Object ID
-     * @param ebo Element Buffer Object ID
-     * @param vertexNormals Whether to generate vertex normals or face normals
-     * @param heightScale How much to scale the height by
-     */
-    fun setGLObjects(vao: Int? = null, vbo: Int? = null, ebo: Int? = null, vertexNormals: Boolean = false, heightScale: Float = 1f): Triple<Int, Int, Int> {
-        val lVao = vao ?: glGenVertexArrays()
-        val lVbo = vbo ?: glGenBuffers()
-        val lEbo = ebo ?: glGenBuffers()
-
-        glBindVertexArray(lVao)
-
-        glBindBuffer(GL_ARRAY_BUFFER, lVbo)
-        val vertices =
-            if (vertexNormals)
-                getVerticesArrayWithVertexNormals(heightScale)
-            else
-                getVerticesArrayWithFaceNormals(heightScale)
-
-        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lEbo)
-        val indices = getIndicesArray()
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 0)
-        glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
-        glEnableVertexAttribArray(1)
-
-        glBindVertexArray(0)
-
-        return Triple(lVao, lVbo, lEbo)
-    }
+    fun getIndicesArray(): IntArray = getIndicesArray(width, height)
 }
