@@ -50,6 +50,10 @@ class Camera(
         pitch
     )
 
+    init {
+        updateCameraVectors()
+    }
+
     /**
      * The view matrix calculated using Euler Angles and the LookAt Matrix.
      */

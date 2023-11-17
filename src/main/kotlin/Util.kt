@@ -52,9 +52,13 @@ infix fun Vector3fc.cross(other: Vector3fc): Vector3f = this.cross(other, Vector
  */
 fun Float.toRadians() = this / 180 * PI.toFloat()
 
-operator fun <T1, T2, T3> HashMap<Pair<T1, T2>, T3>.get(x: T1, y: T2) = this[Pair(x,y)]
+operator fun <T1, T2, T3> MutableMap<Pair<T1, T2>, T3>.get(x: T1, y: T2) = this[Pair(x,y)]
 
-operator fun <T1, T2, T3> HashMap<Pair<T1, T2>, T3>.set(x: T1, y: T2, value: T3) { this[Pair(x,y)] = value }
+operator fun <T1, T2, T3> MutableMap<Pair<T1, T2>, T3>.set(x: T1, y: T2, value: T3) { this[Pair(x,y)] = value }
+
+fun <T1, T2, T3> Map<Pair<T1, T2>, T3>.contains(x: T1, y: T2) = this.contains(Pair(x,y))
+
+fun <T1, T2, T3> MutableMap<Pair<T1, T2>, T3>.remove(x: T1, y: T2) = this.remove(Pair(x,y))
 
 /**
  * A pair of long coordinates.

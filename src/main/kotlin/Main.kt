@@ -8,9 +8,11 @@ import org.joml.Intersectionf.*
 import org.joml.Matrix3f
 import org.joml.Matrix4fc
 import org.joml.Vector3f
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
-import kotlin.math.sin
+import kotlin.math.*
 
 var deltaTime = 0f
 var lastFrameStartTime = 0f
@@ -25,7 +27,7 @@ const val heightScale = 0.005f
 
 val rng = Random(1234)
 
-val camera = Camera(0f, .5f, 3f)
+val camera = Camera(0f, .5f, 3f, pitch = -45f)
 var cameraCursorLastX = currentWindowWidth.toFloat()/2
 var cameraCursorLastY = currentWindowHeight.toFloat()/2
 var firstMouse = true
@@ -39,17 +41,21 @@ var cursorY = cameraCursorLastY
 
 val lightPosition = Vector3f(1.2f, 2f, 2f)
 
-val blocks = HashMap<LCoords, Block>()
-val blockGLObjects = HashMap<LCoords, Int>()
-val blockTextures = HashMap<LCoords, Int>()
-val blockThreads = HashMap<LCoords, Thread>()
 var generateX = 0L
 var generateY = 0L
+val blocks = ConcurrentHashMap<LCoords, Block>()
+val blockThreads = ConcurrentHashMap<LCoords, Thread>()
+val missingBlocks = ConcurrentHashMap.newKeySet<LCoords>()//HashSet<LCoords>()
+val rawBlocks = ConcurrentHashMap<LCoords, Block>()
+val blockGLObjects = HashMap<LCoords, Int>()
+val blockTextures = HashMap<LCoords, Int>()
 
 var mouseLocked = false
 
+var generatingBlocks = AtomicBoolean(true)
+
 fun main() {
-    generateChunk(generateX, generateY)
+//    generateChunk(generateX, generateY)
 
     glfwInit()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3)
@@ -58,7 +64,6 @@ fun main() {
 
     val window = glfwCreateWindow(currentWindowWidth, currentWindowHeight, "helo perlin", 0, 0)
     if (window == 0L) {
-        println("Failed to create GLFW window")
         glfwTerminate()
         return
     }
@@ -111,7 +116,16 @@ fun main() {
     glfwSetMouseButtonCallback(window) { _, button, action, mods ->
         if (action == GLFW_PRESS) when (button) {
             GLFW_MOUSE_BUTTON_LEFT -> {
-                println(getWorldCoordsFromWindowCoords())
+                val coords = getWorldCoordsFromWindowCoords()
+                coords?.let {
+                    println(it)
+                    var blockX = floor(it.first).toLong()
+                    if (blockX < 0) blockX--
+                    var blockY = floor(it.second).toLong()
+                    if (blockY < 0) blockY--
+                    val blockCoords = Pair(blockX/2, blockY/2)
+                    println(blockCoords)
+                }
             }
         }
     }
@@ -121,6 +135,7 @@ fun main() {
     GL.createCapabilities()
 
     glEnable(GL_DEPTH_TEST)
+    glEnable(GL_CULL_FACE)
 
     val shader = Shader("glsl/shader.vert", "glsl/shader.frag")
     val lightingShader = Shader("glsl/light.vert", "glsl/light.frag")
@@ -129,45 +144,45 @@ fun main() {
         //  X     Y      Z
         -0.5f, -0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
-        0.5f,  0.5f, -0.5f,
-        0.5f,  0.5f, -0.5f,
-        -0.5f,  0.5f, -0.5f,
+        0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, -0.5f,
+        -0.5f, 0.5f, -0.5f,
         -0.5f, -0.5f, -0.5f,
 
-        -0.5f, -0.5f,  0.5f,
-        0.5f, -0.5f,  0.5f,
-        0.5f,  0.5f,  0.5f,
-        0.5f,  0.5f,  0.5f,
-        -0.5f,  0.5f,  0.5f,
-        -0.5f, -0.5f,  0.5f,
+        -0.5f, -0.5f, 0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, 0.5f,
+        -0.5f, -0.5f, 0.5f,
 
-        -0.5f,  0.5f,  0.5f,
-        -0.5f,  0.5f, -0.5f,
+        -0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, -0.5f,
         -0.5f, -0.5f, -0.5f,
         -0.5f, -0.5f, -0.5f,
-        -0.5f, -0.5f,  0.5f,
-        -0.5f,  0.5f,  0.5f,
+        -0.5f, -0.5f, 0.5f,
+        -0.5f, 0.5f, 0.5f,
 
-        0.5f,  0.5f,  0.5f,
-        0.5f,  0.5f, -0.5f,
+        0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f,  0.5f,
-        0.5f,  0.5f,  0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
 
         -0.5f, -0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f,  0.5f,
-        0.5f, -0.5f,  0.5f,
-        -0.5f, -0.5f,  0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, -0.5f, 0.5f,
+        -0.5f, -0.5f, 0.5f,
         -0.5f, -0.5f, -0.5f,
 
-        -0.5f,  0.5f, -0.5f,
-        0.5f,  0.5f, -0.5f,
-        0.5f,  0.5f,  0.5f,
-        0.5f,  0.5f,  0.5f,
-        -0.5f,  0.5f,  0.5f,
-        -0.5f,  0.5f, -0.5f,
+        -0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, -0.5f,
     )
 
     val vertexArrays = ArrayList<Int>()
@@ -180,8 +195,64 @@ fun main() {
     glBindBuffer(GL_ARRAY_BUFFER, lightVbo)
     glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW)
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, false, 3*Float.SIZE_BYTES, 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, false, 3 * Float.SIZE_BYTES, 0)
     glEnableVertexAttribArray(0)
+
+    Thread {
+        while (generatingBlocks.get()) {
+            val missingBlocksCopy = missingBlocks.toList()
+            for (coords in missingBlocksCopy) {
+                if (blocks.containsKey(coords)) {
+                    missingBlocks.remove(coords)
+                    continue
+                }
+
+                rawBlocks[coords]?.let {
+                    val topNeighbor = blocks[coords.first, coords.second-1]
+                    val rightNeighbor = blocks[coords.first+1, coords.second]
+                    val bottomNeighbor = blocks[coords.first, coords.second+1]
+                    val leftNeighbor = blocks[coords.first-1, coords.second]
+
+                    it.lerpWithNeighbors(
+                        chunkSize/2,
+                        topNeighbor,
+                        rightNeighbor,
+                        bottomNeighbor,
+                        leftNeighbor
+                    )
+
+                    blocks[coords] = it
+
+                    rawBlocks.remove(coords)
+                    missingBlocks.remove(coords)
+
+                }
+
+                if (blocks.containsKey(coords) || blockThreads[coords]?.isAlive == true) continue
+
+                val thread = Thread {
+                    val block = createPerlinBlock(
+                        blockWidth,
+                        blockHeight,
+                        chunkSize,
+                        rng.nextLong(),
+                    ).addFractalPerlinNoise(
+                        4,
+                        0.75f,
+                        2f,
+                        blockWidth,
+                        blockHeight,
+                        chunkSize,
+                        rng.nextLong()
+                    )
+                    rawBlocks[coords] = block
+                }
+                blockThreads[coords] = thread
+                thread.start()
+            }
+        }
+    }.start()
+
 
     while (!glfwWindowShouldClose(window)) {
         val now = glfwGetTime().toFloat()
@@ -196,35 +267,106 @@ fun main() {
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-        synchronized(blocks) {
-            for ((coords, block) in blocks) {
-                val vao = blockGLObjects[coords] ?: run {
-                    val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
-                    val vbo = glGenBuffers().apply { buffers.add(this) }
-                    val ebo = glGenBuffers().apply { buffers.add(this) }
 
-                    block.setGLObjects(vao, vbo, ebo, heightScale = heightScale)
-                    blockGLObjects[coords] = vao
+        val visibleBlocks = HashSet<LCoords>()
+        val currentMissingBlocks = HashSet<LCoords>()
 
-                    return@run vao
+        for (y in 0..<currentWindowHeight step 10) {
+            for (x in 0..<currentWindowWidth step 10) {
+                val coords = getWorldCoordsFromWindowCoords(x.toFloat(), y.toFloat(), currentWindowWidth, currentWindowHeight)
+                coords?.let {
+                    var blockX = floor(it.first).toLong()
+                    if (blockX < 0) blockX--
+                    var blockY = floor(it.second).toLong()
+                    if (blockY < 0) blockY--
+                    val blockCoords = Pair(blockX/2, blockY/2)
+                    if (blocks.containsKey(blockCoords)) {
+                        visibleBlocks.add(blockCoords)
+                    } else {
+                        currentMissingBlocks.add(blockCoords)
+                    }
                 }
-
-                val model = Matrix4f()
-                    .translate(coords.first * 2f, 0f, coords.second * 2f)
-
-                val normalMatrix = model.normal(Matrix3f())
-
-                shader.use()
-                shader["model"] = model
-                shader["view"] = view
-                shader["projection"] = projection
-                shader["lightColor"] = Vector3f(1f, 1f, 1f)
-                shader["objectColor"] = Vector3f(0f, 0.8f, 0f)
-                shader["lightPosition"] = lightPosition
-                shader["normalMatrix"] = normalMatrix
-                glBindVertexArray(vao)
-                glDrawElements(GL_TRIANGLES, block.indicesCount, GL_UNSIGNED_INT, 0)
             }
+        }
+
+        missingBlocks.addAll(currentMissingBlocks)
+
+        //TODO culling źle ucina
+        //TODO lerpowanie zwiesza
+
+//        if (!blocks.contains(x, y)) {
+//            if (blockThreads[x, y]?.isAlive == true) {
+//                continue
+//            }
+//            synchronized(rawBlocks) {
+//                if (!rawBlocks.contains(x, y)) {
+//                    val thread = Thread {
+//                        val block = createPerlinBlock(
+//                            blockWidth,
+//                            blockHeight,
+//                            chunkSize,
+//                            rng.nextLong(),
+//                        ).addFractalPerlinNoise(
+//                            4,
+//                            0.75f,
+//                            2f,
+//                            blockWidth,
+//                            blockHeight,
+//                            chunkSize,
+//                            rng.nextLong()
+//                        )
+//                        synchronized(rawBlocks) {
+//                            rawBlocks[x, y] = block
+//                        }
+//                        blockThreads.remove(x, y)
+//                    }
+//                    blockThreads[x, y] = thread
+//                    thread.start()
+//                } else {
+//                    rawBlocks[x, y]?.let {
+//                        it.lerpWithNeighbors(
+//                            chunkSize / 2,
+//                            blocks[x, y - 1],
+//                            blocks[x + 1, y],
+//                            blocks[x, y + 1],
+//                            blocks[x - 1, y]
+//                        )
+//                        blocks[x, y] = it
+//                    }
+//                    rawBlocks.remove(x, y)
+//                }
+//            }
+//        }
+
+        for (coords in visibleBlocks) {
+            val block = blocks[coords] ?: continue
+            //TODO liczenie vertów w osobnym wątku
+            val vao = blockGLObjects[coords] ?: run {
+                val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
+                val vbo = glGenBuffers().apply { buffers.add(this) }
+                val ebo = glGenBuffers().apply { buffers.add(this) }
+
+                block.setGLObjects(vao, vbo, ebo, heightScale = heightScale)
+                blockGLObjects[coords] = vao
+
+                return@run vao
+            }
+
+            val model = Matrix4f()
+                .translate(coords.first * 2f + 1f, 0f, coords.second * 2f + 1f)
+
+            val normalMatrix = model.normal(Matrix3f())
+
+            shader.use()
+            shader["model"] = model
+            shader["view"] = view
+            shader["projection"] = projection
+            shader["lightColor"] = Vector3f(1f, 1f, 1f)
+            shader["objectColor"] = Vector3f(0f, 0.8f, 0f)
+            shader["lightPosition"] = lightPosition
+            shader["normalMatrix"] = normalMatrix
+            glBindVertexArray(vao)
+            glDrawElements(GL_TRIANGLES, block.indicesCount, GL_UNSIGNED_INT, 0)
         }
 
         lightingShader.use()
@@ -238,8 +380,9 @@ fun main() {
 
         glfwSwapBuffers(window)
         glfwPollEvents()
-
     }
+
+    generatingBlocks.set(false)
 
     glDeleteVertexArrays(vertexArrays.toIntArray())
     glDeleteBuffers(buffers.toIntArray())
@@ -279,9 +422,7 @@ fun generateChunk(x: Long, y: Long) {
                 chunkSize,
                 rng.nextLong()
             ).lerpWithNeighbors(chunkSize/2, blocks[x, y-1], blocks[x+1, y], blocks[x, y+1], blocks[x-1, y])
-            synchronized(blocks) {
-                blocks[x, y] = block
-            }
+            blocks[x, y] = block
             blockThreads.remove(Pair(x, y))
         }
         blockThreads[x, y] = thread
@@ -301,12 +442,12 @@ fun generateChunk(x: Long, y: Long) {
  * or null if the ray doesn't intersect the xz-plane
  */
 fun getWorldCoordsFromWindowCoords(
-    projectionMatrix: Matrix4fc = projection,
-    viewMatrix: Matrix4fc = camera.viewMatrix,
     windowX: Float = cursorX,
     windowY: Float = cursorY,
     windowWidth: Int = currentWindowWidth,
-    windowHeight: Int = currentWindowHeight
+    windowHeight: Int = currentWindowHeight,
+    projectionMatrix: Matrix4fc = projection,
+    viewMatrix: Matrix4fc = camera.viewMatrix
 ): FCoords? {
     val position = Vector3f()
     val direction = Vector3f()
@@ -314,7 +455,7 @@ fun getWorldCoordsFromWindowCoords(
         .unprojectRay(windowX, windowHeight - windowY, intArrayOf(0, 0, windowWidth, windowHeight), position, direction)
     val offset = intersectRayPlane(position, direction, Vector3f(), Vector3f(0f, 1f, 0f), 0f)
 
-    if (offset == -1f) return null
+    if (offset == -1f || offset > 100f) return null
 
     position.add(direction.mul(offset))
     return Pair(position.x, position.z)
