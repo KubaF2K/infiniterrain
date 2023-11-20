@@ -5,33 +5,27 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-const val YAW = -90f
-const val PITCH = 0f
-const val SPEED = 2.5f
-const val SENSITIVITY = 0.1f
-const val ZOOM = 45f
-
-
 class Camera(
     val position: Vector3f = Vector3f(),
     val up: Vector3f = Vector3f(0f, 1f, 0f),
-    var yaw: Float = YAW,
-    var pitch: Float = PITCH
+    var yaw: Float = -90f,
+    var pitch: Float = 0f
 ) {
     enum class CameraMovement {
         FORWARD,
         BACKWARD,
         LEFT,
-        RIGHT
+        RIGHT,
+        UP,
+        DOWN
     }
 
     val front = Vector3f(0f, 0f, -1f)
     val right = Vector3f()
 
     val worldUp = Vector3f(up)
-    var movementSpeed = SPEED
-    var mouseSensitivity = SENSITIVITY
-    var zoom = ZOOM
+    var movementSpeed = 2.5f
+    var mouseSensitivity = .1f
 
 
     constructor(
@@ -41,8 +35,8 @@ class Camera(
         upX: Float = 0f,
         upY: Float = 1f,
         upZ: Float = 0f,
-        yaw: Float = YAW,
-        pitch: Float = PITCH
+        yaw: Float = -90f,
+        pitch: Float = 0f
     ): this(
         Vector3f(posX, posY, posZ),
         Vector3f(upX, upY, upZ),
@@ -69,12 +63,15 @@ class Camera(
         val velocity = movementSpeed * deltaTime
         position.add(
             when (direction) {
-                CameraMovement.FORWARD -> front * velocity
-                CameraMovement.BACKWARD -> (front * velocity).negate()
-                CameraMovement.LEFT -> (right * velocity).negate()
-                CameraMovement.RIGHT -> right * velocity
+                CameraMovement.FORWARD -> Vector3f(front.x, 0f, front.z).normalize() * velocity
+                CameraMovement.BACKWARD -> Vector3f(front.x, 0f, front.z).normalize() * -velocity
+                CameraMovement.LEFT -> Vector3f(right.x, 0f, right.z).normalize() * -velocity
+                CameraMovement.RIGHT -> Vector3f(right.x, 0f, right.z).normalize() * velocity
+                CameraMovement.UP -> Vector3f(0f, velocity, 0f)
+                CameraMovement.DOWN -> Vector3f(0f, -velocity, 0f)
             }
         )
+        println(position)
     }
 
     /**
@@ -99,8 +96,8 @@ class Camera(
      * @param yOffset the scroll offset
      */
     fun processMouseScroll(yOffset: Float) {
-        zoom -= yOffset
-        zoom = max(1f, min(45f, zoom))
+        if ((position + (front * yOffset)).y < 0) return
+        position.add(front * yOffset)
     }
 
     private fun updateCameraVectors() {
