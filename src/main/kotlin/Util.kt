@@ -1,3 +1,4 @@
+import imgui.ImGui
 import org.joml.Matrix4f
 import org.joml.Matrix4fc
 import org.joml.Vector3f
@@ -69,3 +70,26 @@ typealias LCoords = Pair<Long, Long>
  * A pair of float coordinates.
  */
 typealias FCoords = Pair<Float, Float>
+
+/**
+ * Creates an ImGui Window with the given title, executes the given function, and then calls ImGui.end().
+ * @param title the title of the window
+ * @param function the function to execute between ImGui.begin() and ImGui.end()
+ * @see ImGui.begin
+ * @see ImGui.end
+ */
+fun ImGuiWindow(title: String, function: () -> Unit) {
+    ImGui.begin(title)
+    function()
+    ImGui.end()
+}
+
+/**
+ * Creates an ImGui Button with the given label and executes the given function when the button is pressed.
+ * @param label the label of the button
+ * @param function the function to execute when the button is pressed
+ * @see ImGui.button
+ */
+fun ImGuiButton(label: String, function: () -> Unit) {
+    if(ImGui.button(label)) function()
+}

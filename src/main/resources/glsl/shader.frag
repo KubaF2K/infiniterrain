@@ -7,9 +7,14 @@ out vec4 fragColor;
 uniform vec3 objectColor;
 uniform vec3 lightColor;
 uniform vec3 lightPosition;
+uniform bool selected;
 
 void main() {
     float ambientStrength = 0.1f;
+    if (selected) {
+        ambientStrength = 0.5f;
+    }
+
     vec3 ambient = ambientStrength * lightColor;
 
     vec3 normalized = normalize(normal);

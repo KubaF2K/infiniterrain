@@ -3,6 +3,7 @@ import imgui.ImGui
 import imgui.flag.ImGuiConfigFlags
 import imgui.gl3.ImGuiImplGl3
 import imgui.glfw.ImGuiImplGlfw
+import imgui.type.ImBoolean
 import org.joml.Intersectionf.intersectRayPlane
 import org.joml.Matrix3f
 import org.joml.Matrix4f
@@ -52,13 +53,16 @@ val blocks: MutableMap<LCoords, Block> = ConcurrentHashMap()
 val generatedBlocks: MutableSet<LCoords> = ConcurrentHashMap.newKeySet()
 val missingBlocks: MutableSet<LCoords> = ConcurrentHashMap.newKeySet()
 val rawBlocks: MutableMap<LCoords, Block> = ConcurrentHashMap()
-val blockGLObjects: MutableMap<LCoords, Int> = HashMap()
+val blockGLObjects: MutableMap<LCoords, Triple<Int, Int, Int>> = HashMap()
 val blockVertexArrays: MutableMap<LCoords, FloatArray> = ConcurrentHashMap()
 val blockTextures: MutableMap<LCoords, Int> = HashMap()
 
+val selectedBlocks: MutableSet<LCoords> = ConcurrentHashMap.newKeySet()
+
 var mouseLocked = false
 
-var generatingBlocks = AtomicBoolean(true)
+val generatingBlocks = AtomicBoolean(true)
+var generatingBlocksGui = ImBoolean(true)
 
 fun main() {
     GLFWErrorCallback.createPrint(System.err).set()
@@ -84,6 +88,20 @@ fun main() {
         currentWindowHeight = cHeight
         glViewport(0, 0, currentWindowWidth, currentWindowHeight)
     }
+
+    glfwSetInputMode(window, GLFW_CURSOR, if (mouseLocked) GLFW_CURSOR_DISABLED else GLFW_CURSOR_NORMAL)
+
+    GL.createCapabilities()
+
+    val imGuiGlfw = ImGuiImplGlfw()
+    val imGuiGl3 = ImGuiImplGl3()
+
+    ImGui.setCurrentContext(ImGui.createContext())
+    imGuiGlfw.init(window, true)
+    imGuiGl3.init("#version 330 core")
+
+    val imGuiIO = ImGui.getIO()
+
     glfwSetCursorPosCallback(window) { _, xPos, yPos ->
         cursorX = xPos.toFloat()
         cursorY = yPos.toFloat()
@@ -111,7 +129,7 @@ fun main() {
     }
     glfwSetKeyCallback(window) { _, key, scancode, action, mods ->
         if (action == GLFW_PRESS) when (key) {
-            GLFW_KEY_ESCAPE -> glfwSetWindowShouldClose(window, true)
+            GLFW_KEY_ESCAPE -> selectedBlocks.clear()
             GLFW_KEY_F -> {
                 mouseLocked = !mouseLocked
                 firstMouse = mouseLocked
@@ -130,33 +148,21 @@ fun main() {
     glfwSetMouseButtonCallback(window) { _, button, action, mods ->
         if (action == GLFW_PRESS) when (button) {
             GLFW_MOUSE_BUTTON_LEFT -> {
-                val coords = getWorldCoordsFromWindowCoords()
-                coords?.let {
-                    println(it)
-                    val blockCoords = it.toBlockCoords()
-                    println(blockCoords)
-                    blocks.remove(blockCoords)
-                    blockVertexArrays.remove(blockCoords)
-                    blockGLObjects[blockCoords]?.let { vaoCoords ->
-                        glDeleteVertexArrays(vaoCoords)
-                        blockGLObjects.remove(blockCoords)
-                        //TODO buffer memory leak?
+                if (!imGuiIO.wantCaptureMouse) {
+                    val coords = getWorldCoordsFromWindowCoords()
+                    coords?.let {
+                        selectedBlocks.clear()
+                        selectedBlocks.add(it.toBlockCoords())
                     }
+                }
+            }
+            GLFW_MOUSE_BUTTON_RIGHT -> {
+                if (!imGuiIO.wantCaptureMouse) {
+                    selectedBlocks.clear()
                 }
             }
         }
     }
-
-    glfwSetInputMode(window, GLFW_CURSOR, if (mouseLocked) GLFW_CURSOR_DISABLED else GLFW_CURSOR_NORMAL)
-
-    GL.createCapabilities()
-
-    val imGuiGlfw = ImGuiImplGlfw()
-    val imGuiGl3 = ImGuiImplGl3()
-
-    ImGui.setCurrentContext(ImGui.createContext())
-    imGuiGlfw.init(window, true)
-    imGuiGl3.init("#version 330 core")
 
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_CULL_FACE)
@@ -253,8 +259,10 @@ fun main() {
                     val blockCoords = it.toBlockCoords()
                     if (blockCoords in blocks) {
                         visibleBlocks.add(blockCoords)
-                    } else {
+                    } else if (generatingBlocks.get()) {
                         currentMissingBlocks.add(blockCoords)
+                    } else {
+                        //TODO why this block
                     }
                 }
             }
@@ -265,7 +273,7 @@ fun main() {
         for (coords in visibleBlocks) {
             val block = blocks[coords] ?: continue
             val vertexArray = blockVertexArrays[coords] ?: continue
-            val vao = blockGLObjects[coords] ?: run {
+            val vao = blockGLObjects[coords]?.first ?: run {
                 val vao = glGenVertexArrays().apply { vertexArrays.add(this) }
                 val vbo = glGenBuffers().apply { buffers.add(this) }
                 val ebo = glGenBuffers().apply { buffers.add(this) }
@@ -283,7 +291,7 @@ fun main() {
                 glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.SIZE_BYTES, 3 * Float.SIZE_BYTES.toLong())
                 glEnableVertexAttribArray(1)
 
-                blockGLObjects[coords] = vao
+                blockGLObjects[coords] = Triple(vao, vbo, ebo)
 
                 return@run vao
             }
@@ -301,6 +309,7 @@ fun main() {
             shader["objectColor"] = Vector3f(0f, 0.8f, 0f)
             shader["lightPosition"] = lightPosition
             shader["normalMatrix"] = normalMatrix
+            shader["selected"] = coords in selectedBlocks
             glBindVertexArray(vao)
             glDrawElements(GL_TRIANGLES, block.indicesCount, GL_UNSIGNED_INT, 0)
         }
@@ -314,13 +323,33 @@ fun main() {
         glBindVertexArray(lightVao)
         glDrawArrays(GL_TRIANGLES, 0, 36)
 
-        ImGui.begin("Cool")
+        ImGuiWindow("Infiniterrain") {
+            ImGui.checkbox("Generating blocks", generatingBlocksGui)
+            if (generatingBlocksGui.get() != generatingBlocks.get()) {
+                generatingBlocks.set(generatingBlocksGui.get())
+            }
+            ImGui.text("FPS: ${(1/deltaTime).toInt()}")
 
-        if (ImGui.button("Cool")) {
-            println("Cool")
+            ImGui.spacing()
+
+            ImGui.text("DEBUG")
+            ImGui.text("Blocks: ${blocks.size}")
+            ImGui.text("Visible blocks: ${visibleBlocks.size}")
+            ImGui.text("Missing blocks: ${missingBlocks.size}")
+            ImGui.text("Raw (uninterpolated) blocks: ${rawBlocks.size}")
+            ImGui.text("Generating blocks: ${generatedBlocks.size}")
+            ImGui.text("Camera position: %.2f, %.2f, %.2f".format(camera.position.x, camera.position.y, camera.position.z))
         }
 
-        ImGui.end()
+        if (selectedBlocks.size == 1) {
+            ImGuiWindow("Block") {
+                ImGui.text("Coordinates: ${selectedBlocks.first()}")
+                ImGuiButton("Delete") {
+                    deleteBlock(selectedBlocks.first())
+                    selectedBlocks.clear()
+                }
+            }
+        }
 
         ImGui.render()
         imGuiGl3.renderDrawData(ImGui.getDrawData())
@@ -409,6 +438,16 @@ fun FCoords.toBlockCoords(): LCoords {
     return Pair(blockX/2, blockY/2)
 }
 
+fun deleteBlock(blockCoords: LCoords) {
+    blocks.remove(blockCoords)
+    blockVertexArrays.remove(blockCoords)
+    blockGLObjects[blockCoords]?.let { glObjects ->
+        glDeleteVertexArrays(glObjects.first)
+        glDeleteBuffers(intArrayOf(glObjects.second, glObjects.third))
+        blockGLObjects.remove(blockCoords)
+    }
+}
+
 val generateChunks = Runnable {
     val executor = Executors.newFixedThreadPool(generationThreads)
     while (generatingBlocks.get()) {
@@ -466,5 +505,8 @@ val generateChunks = Runnable {
             }
         }
     }
+    missingBlocks.clear()
+    generatedBlocks.clear()
+    //TODO sometimes there's holes
     executor.shutdownNow()
 }

@@ -1,8 +1,6 @@
 import org.joml.Matrix4f
 import org.joml.Vector3f
 import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 
 class Camera(
@@ -71,7 +69,7 @@ class Camera(
                 CameraMovement.DOWN -> Vector3f(0f, -velocity, 0f)
             }
         )
-        println(position)
+        if (position.y < 1f) position.y = 1f
     }
 
     /**
@@ -85,7 +83,7 @@ class Camera(
         pitch = (pitch - yOffset * mouseSensitivity) % 360f
 
         if (constrainPitch) {
-            pitch = max(-89f, min(89f, pitch))
+            pitch = pitch.coerceIn(-89f, 89f)
         }
 
         updateCameraVectors()
@@ -96,7 +94,7 @@ class Camera(
      * @param yOffset the scroll offset
      */
     fun processMouseScroll(yOffset: Float) {
-        if ((position + (front * yOffset)).y < 0) return
+        if ((position + (front * yOffset)).y < 1) return
         position.add(front * yOffset)
     }
 
