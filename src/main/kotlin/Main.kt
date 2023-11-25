@@ -1,19 +1,24 @@
-import org.joml.Matrix4f
-import kotlin.random.Random
-import org.lwjgl.glfw.GLFW.*
-import org.lwjgl.opengl.GL
-import org.lwjgl.opengl.GL33.*
 import Camera.CameraMovement.*
-import org.joml.Intersectionf.*
+import imgui.ImGui
+import imgui.flag.ImGuiConfigFlags
+import imgui.gl3.ImGuiImplGl3
+import imgui.glfw.ImGuiImplGlfw
+import org.joml.Intersectionf.intersectRayPlane
 import org.joml.Matrix3f
+import org.joml.Matrix4f
 import org.joml.Matrix4fc
 import org.joml.Vector3f
+import org.lwjgl.glfw.GLFW.*
+import org.lwjgl.glfw.GLFWErrorCallback
+import org.lwjgl.opengl.GL
+import org.lwjgl.opengl.GL33.*
+import org.lwjgl.system.MemoryUtil.NULL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
-import kotlin.math.*
+import kotlin.math.floor
+import kotlin.math.sin
+import kotlin.random.Random
 
 var deltaTime = 0f
 var lastFrameStartTime = 0f
@@ -56,18 +61,22 @@ var mouseLocked = false
 var generatingBlocks = AtomicBoolean(true)
 
 fun main() {
-//    generateChunk(generateX, generateY)
+    GLFWErrorCallback.createPrint(System.err).set()
 
-    glfwInit()
+    if (!glfwInit()) error("Unable to initialize GLFW")
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3)
+
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE)
+
+    val window = glfwCreateWindow(currentWindowWidth, currentWindowHeight, "helo perlin", NULL, NULL)
+    if (window == NULL) {
+        error("Failed to create GLFW window")
+    }
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE)
 
-    val window = glfwCreateWindow(currentWindowWidth, currentWindowHeight, "helo perlin", 0, 0)
-    if (window == 0L) {
-        glfwTerminate()
-        return
-    }
+    glfwShowWindow(window)
 
     glfwMakeContextCurrent(window)
     glfwSetFramebufferSizeCallback(window) { _, cWidth, cHeight ->
@@ -142,6 +151,13 @@ fun main() {
 
     GL.createCapabilities()
 
+    val imGuiGlfw = ImGuiImplGlfw()
+    val imGuiGl3 = ImGuiImplGl3()
+
+    ImGui.setCurrentContext(ImGui.createContext())
+    imGuiGlfw.init(window, true)
+    imGuiGl3.init("#version 330 core")
+
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_CULL_FACE)
 
@@ -214,10 +230,14 @@ fun main() {
         deltaTime = now - lastFrameStartTime
         lastFrameStartTime = now
 
+        imGuiGlfw.newFrame()
+        ImGui.newFrame()
+
         lightPosition.z = 2f * sin(now)
 
         processInput(window)
 
+        val projection = projection
         val view = camera.viewMatrix
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
@@ -293,6 +313,24 @@ fun main() {
 
         glBindVertexArray(lightVao)
         glDrawArrays(GL_TRIANGLES, 0, 36)
+
+        ImGui.begin("Cool")
+
+        if (ImGui.button("Cool")) {
+            println("Cool")
+        }
+
+        ImGui.end()
+
+        ImGui.render()
+        imGuiGl3.renderDrawData(ImGui.getDrawData())
+
+        if (ImGui.getIO().hasConfigFlags(ImGuiConfigFlags.ViewportsEnable)) {
+            val backupCurrentContext = glfwGetCurrentContext()
+            ImGui.updatePlatformWindows()
+            ImGui.renderPlatformWindowsDefault()
+            glfwMakeContextCurrent(backupCurrentContext)
+        }
 
         glfwSwapBuffers(window)
         glfwPollEvents()

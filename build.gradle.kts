@@ -1,6 +1,7 @@
 import org.gradle.internal.os.OperatingSystem
 
 val lwjglVersion = "3.3.3"
+val imguiVersion = "1.86.11"
 
 val lwjglNatives = Pair(
     System.getProperty("os.name")!!,
@@ -38,6 +39,14 @@ dependencies {
     implementation("org.lwjgl", "lwjgl-openal")
     implementation("org.lwjgl", "lwjgl-opengl")
     implementation("org.lwjgl", "lwjgl-stb")
+
+    // https://github.com/SpaiR/imgui-java
+
+    implementation("io.github.spair:imgui-java-binding:$imguiVersion")
+    implementation("io.github.spair:imgui-java-lwjgl3:$imguiVersion")
+
+    implementation("io.github.spair:imgui-java-natives-windows:$imguiVersion")
+
     runtimeOnly("org.lwjgl", "lwjgl", classifier = lwjglNatives)
     runtimeOnly("org.lwjgl", "lwjgl-assimp", classifier = lwjglNatives)
     runtimeOnly("org.lwjgl", "lwjgl-glfw", classifier = lwjglNatives)
