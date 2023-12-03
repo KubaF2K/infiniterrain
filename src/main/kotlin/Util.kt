@@ -1,8 +1,5 @@
 import imgui.ImGui
-import org.joml.Matrix4f
-import org.joml.Matrix4fc
-import org.joml.Vector3f
-import org.joml.Vector3fc
+import org.joml.*
 import kotlin.math.PI
 import kotlin.math.pow
 
@@ -22,6 +19,11 @@ operator fun Vector3fc.unaryMinus(): Vector3f = this.negate(Vector3f())
  * Subtracts the second vector from the first and returns the result in a new vector.
  */
 operator fun Vector3fc.minus(other: Vector3fc): Vector3f = this.sub(other, Vector3f())
+
+/**
+ * Subtracts the second vector from the first and returns the result in a new vector.
+ */
+operator fun Vector2fc.minus(other: Vector2fc): Vector2f = this.sub(other, Vector2f())
 
 /**
  * Adds the vectors together and returns the result in a new vector.
@@ -49,6 +51,12 @@ operator fun Matrix4fc.times(other: Matrix4fc): Matrix4f = this.mul(other, Matri
 infix fun Vector3fc.cross(other: Vector3fc): Vector3f = this.cross(other, Vector3f())
 
 /**
+ * Swizzles the x and z of the vector to a Vector2f.
+ * @see Vector2f
+ */
+fun Vector3fc.xz() = Vector2f(x(), z())
+
+/**
  * Converts the angle from degrees to radians.
  */
 fun Float.toRadians() = this / 180 * PI.toFloat()
@@ -60,16 +68,6 @@ operator fun <T1, T2, T3> MutableMap<Pair<T1, T2>, T3>.set(x: T1, y: T2, value: 
 fun <T1, T2, T3> Map<Pair<T1, T2>, T3>.contains(x: T1, y: T2) = this.contains(Pair(x,y))
 
 fun <T1, T2, T3> MutableMap<Pair<T1, T2>, T3>.remove(x: T1, y: T2) = this.remove(Pair(x,y))
-
-/**
- * A pair of long coordinates.
- */
-typealias LCoords = Pair<Long, Long>
-
-/**
- * A pair of float coordinates.
- */
-typealias FCoords = Pair<Float, Float>
 
 /**
  * Creates an ImGui Window with the given title, executes the given function, and then calls ImGui.end().

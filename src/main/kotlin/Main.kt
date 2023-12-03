@@ -4,11 +4,8 @@ import imgui.flag.ImGuiConfigFlags
 import imgui.gl3.ImGuiImplGl3
 import imgui.glfw.ImGuiImplGlfw
 import imgui.type.ImBoolean
+import org.joml.*
 import org.joml.Intersectionf.intersectRayPlane
-import org.joml.Matrix3f
-import org.joml.Matrix4f
-import org.joml.Matrix4fc
-import org.joml.Vector3f
 import org.lwjgl.glfw.GLFW.*
 import org.lwjgl.glfw.GLFWErrorCallback
 import org.lwjgl.opengl.GL
@@ -49,15 +46,15 @@ var cursorY = cameraCursorLastY
 
 val lightPosition = Vector3f(1.2f, 2f, 2f)
 
-val blocks: MutableMap<LCoords, Block> = ConcurrentHashMap()
-val generatedBlocks: MutableSet<LCoords> = ConcurrentHashMap.newKeySet()
-val missingBlocks: MutableSet<LCoords> = ConcurrentHashMap.newKeySet()
-val rawBlocks: MutableMap<LCoords, Block> = ConcurrentHashMap()
-val blockGLObjects: MutableMap<LCoords, Triple<Int, Int, Int>> = HashMap()
-val blockVertexArrays: MutableMap<LCoords, FloatArray> = ConcurrentHashMap()
-val blockTextures: MutableMap<LCoords, Int> = HashMap()
+val blocks: MutableMap<Vector2i, Block> = ConcurrentHashMap()
+val generatedBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
+val missingBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
+val rawBlocks: MutableMap<Vector2i, Block> = ConcurrentHashMap()
+val blockGLObjects: MutableMap<Vector2i, Triple<Int, Int, Int>> = HashMap()
+val blockVertexArrays: MutableMap<Vector2i, FloatArray> = ConcurrentHashMap()
+val blockTextures: MutableMap<Vector2i, Int> = HashMap()
 
-val selectedBlocks: MutableSet<LCoords> = ConcurrentHashMap.newKeySet()
+val selectedBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
 
 var mouseLocked = false
 
@@ -246,11 +243,11 @@ fun main() {
         val projection = projection
         val view = camera.viewMatrix
 
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+        glClearColor(0f, 0f, 0f, 1f)
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-        val visibleBlocks = HashSet<LCoords>()
-        val currentMissingBlocks = HashSet<LCoords>()
+        val visibleBlocks = HashSet<Vector2i>()
+        val currentMissingBlocks = HashSet<Vector2i>()
 
         for (y in 0..<currentWindowHeight step currentWindowHeight/64) {
             for (x in 0..<currentWindowWidth step currentWindowWidth/64) {
@@ -297,7 +294,7 @@ fun main() {
             }
 
             val model = Matrix4f()
-                .translate(coords.first * 2f + 1f, 0f, coords.second * 2f + 1f)
+                .translate(coords.x * 2f + 1f, 0f, coords.y * 2f + 1f)
 
             val normalMatrix = model.normal(Matrix3f())
 
@@ -343,7 +340,7 @@ fun main() {
 
         if (selectedBlocks.size == 1) {
             ImGuiWindow("Block") {
-                ImGui.text("Coordinates: ${selectedBlocks.first()}")
+                ImGui.text("Coordinates: (${selectedBlocks.first().x}, ${selectedBlocks.first().y})")
                 ImGuiButton("Delete") {
                     deleteBlock(selectedBlocks.first())
                     selectedBlocks.clear()
@@ -370,6 +367,7 @@ fun main() {
     glDeleteVertexArrays(vertexArrays.toIntArray())
     glDeleteBuffers(buffers.toIntArray())
     glDeleteTextures(blockTextures.values.toIntArray())
+
 }
 
 fun processInput(window: Long) {
@@ -411,7 +409,7 @@ fun getWorldCoordsFromWindowCoords(
     windowHeight: Int = currentWindowHeight,
     projectionMatrix: Matrix4fc = projection,
     viewMatrix: Matrix4fc = camera.viewMatrix
-): FCoords? {
+): Vector2f? {
     val position = Vector3f()
     val direction = Vector3f()
     (projectionMatrix * viewMatrix)
@@ -423,22 +421,22 @@ fun getWorldCoordsFromWindowCoords(
     //TODO generate chunks nearest to the camera first
 
     position.add(direction.mul(offset))
-    return Pair(position.x, position.z)
+    return Vector2f(position.x, position.z)
 }
 
 /**
  * Converts xz plane float coordinates to block coordinates.
  * @return block long coordinates
  */
-fun FCoords.toBlockCoords(): LCoords {
-    var blockX = floor(this.first).toLong()
+fun Vector2f.toBlockCoords(): Vector2i {
+    var blockX = floor(this.x).toInt()
     if (blockX < 0) blockX--
-    var blockY = floor(this.second).toLong()
+    var blockY = floor(this.y).toInt()
     if (blockY < 0) blockY--
-    return Pair(blockX/2, blockY/2)
+    return Vector2i(blockX/2, blockY/2)
 }
 
-fun deleteBlock(blockCoords: LCoords) {
+fun deleteBlock(blockCoords: Vector2i) {
     blocks.remove(blockCoords)
     blockVertexArrays.remove(blockCoords)
     blockGLObjects[blockCoords]?.let { glObjects ->
@@ -458,10 +456,10 @@ val generateChunks = Runnable {
             }
 
             rawBlocks[coords]?.let {
-                val topNeighbor = blocks[coords.first, coords.second-1]
-                val rightNeighbor = blocks[coords.first+1, coords.second]
-                val bottomNeighbor = blocks[coords.first, coords.second+1]
-                val leftNeighbor = blocks[coords.first-1, coords.second]
+                val topNeighbor = blocks[Vector2i(coords.x, coords.y-1)]
+                val rightNeighbor = blocks[Vector2i(coords.x+1, coords.y)]
+                val bottomNeighbor = blocks[Vector2i(coords.x, coords.y+1)]
+                val leftNeighbor = blocks[Vector2i(coords.x-1, coords.y)]
 
                 it.lerpWithNeighbors(
                     chunkSize/2,
