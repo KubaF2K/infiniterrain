@@ -17,7 +17,7 @@ val lwjglNatives = Pair(
 }
 
 plugins {
-    kotlin("jvm") version "1.9.0"
+    kotlin("jvm") version "1.9.21"
 }
 
 group = "pl.kubaf2k"
@@ -62,5 +62,5 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(21)
 }

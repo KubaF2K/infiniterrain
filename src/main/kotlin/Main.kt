@@ -59,7 +59,7 @@ val selectedBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
 var mouseLocked = false
 
 val generatingBlocks = AtomicBoolean(true)
-var generatingBlocksGui = ImBoolean(true)
+val generatingBlocksGui = ImBoolean(true)
 
 fun main() {
     GLFWErrorCallback.createPrint(System.err).set()
@@ -139,6 +139,7 @@ fun main() {
                     generatingBlocks.set(true)
                     Thread(generateChunks).start()
                 }
+                generatingBlocksGui.set(generatingBlocks.get())
             }
         }
     }
@@ -504,6 +505,7 @@ val generateChunks = Runnable {
         }
     }
     missingBlocks.clear()
+    rawBlocks.clear()
     generatedBlocks.clear()
     //TODO sometimes there's holes
     executor.shutdownNow()
