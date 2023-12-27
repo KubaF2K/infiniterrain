@@ -4,6 +4,7 @@ import imgui.flag.ImGuiConfigFlags
 import imgui.gl3.ImGuiImplGl3
 import imgui.glfw.ImGuiImplGlfw
 import imgui.type.ImBoolean
+import imgui.type.ImInt
 import org.joml.*
 import org.joml.Intersectionf.intersectRayPlane
 import org.lwjgl.glfw.GLFW.*
@@ -53,6 +54,8 @@ val rawBlocks: MutableMap<Vector2i, Block> = ConcurrentHashMap()
 val blockGLObjects: MutableMap<Vector2i, Triple<Int, Int, Int>> = HashMap()
 val blockVertexArrays: MutableMap<Vector2i, FloatArray> = ConcurrentHashMap()
 val blockTextures: MutableMap<Vector2i, Int> = HashMap()
+
+var generationRadius = ImInt(4)
 
 val selectedBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
 
@@ -250,23 +253,70 @@ fun main() {
         val visibleBlocks = HashSet<Vector2i>()
         val currentMissingBlocks = HashSet<Vector2i>()
 
-        for (y in 0..<currentWindowHeight step currentWindowHeight/64) {
-            for (x in 0..<currentWindowWidth step currentWindowWidth/64) {
-                val coords = getWorldCoordsFromWindowCoords(x.toFloat(), y.toFloat(), currentWindowWidth, currentWindowHeight)
-                coords?.let {
-                    val blockCoords = it.toBlockCoords()
-                    if (blockCoords in blocks) {
-                        visibleBlocks.add(blockCoords)
-                    } else if (generatingBlocks.get()) {
-                        currentMissingBlocks.add(blockCoords)
-                    } else {
-                        //TODO why this block
-                    }
-                }
+        val cameraCoords = camera.position.xz().toBlockCoords()
+
+        for (i in 0..generationRadius.get()) {
+            for (y in -i..i) {
+                val blockCoords = cameraCoords + Vector2i(i, y)
+                if (blockCoords in blocks) {
+                    visibleBlocks
+                } else {
+                    if (generatingBlocks.get()) {
+                        currentMissingBlocks
+                    } else { null }
+                }?.add(blockCoords)
+            }
+            for (x in i downTo -i) {
+                val blockCoords = cameraCoords + Vector2i(x, i)
+                if (blockCoords in blocks) {
+                    visibleBlocks
+                } else {
+                    if (generatingBlocks.get()) {
+                        currentMissingBlocks
+                    } else { null }
+                }?.add(blockCoords)
+            }
+            for (y in i downTo -i) {
+                val blockCoords = cameraCoords + Vector2i(-i, y)
+                if (blockCoords in blocks) {
+                    visibleBlocks
+                } else {
+                    if (generatingBlocks.get()) {
+                        currentMissingBlocks
+                    } else { null }
+                }?.add(blockCoords)
+            }
+            for (x in -i..i) {
+                val blockCoords = cameraCoords + Vector2i(x, -i)
+                if (blockCoords in blocks) {
+                    visibleBlocks
+                } else {
+                    if (generatingBlocks.get()) {
+                        currentMissingBlocks
+                    } else { null }
+                }?.add(blockCoords)
             }
         }
 
         missingBlocks.addAll(currentMissingBlocks)
+
+//        for (y in 0..<currentWindowHeight step currentWindowHeight/64) {
+//            for (x in 0..<currentWindowWidth step currentWindowWidth/64) {
+//                val coords = getWorldCoordsFromWindowCoords(x.toFloat(), y.toFloat(), currentWindowWidth, currentWindowHeight)
+//                coords?.let {
+//                    val blockCoords = it.toBlockCoords()
+//                    if (blockCoords in blocks) {
+//                        visibleBlocks.add(blockCoords)
+//                    } else if (generatingBlocks.get()) {
+//                        currentMissingBlocks.add(blockCoords)
+//                    } else {
+//                        //TODO why this block
+//                    }
+//                }
+//            }
+//        }
+//
+//        missingBlocks.addAll(currentMissingBlocks)
 
         for (coords in visibleBlocks) {
             val block = blocks[coords] ?: continue
@@ -326,6 +376,7 @@ fun main() {
             if (generatingBlocksGui.get() != generatingBlocks.get()) {
                 generatingBlocks.set(generatingBlocksGui.get())
             }
+            ImGui.inputInt("Generation radius", generationRadius)
             ImGui.text("FPS: ${(1/deltaTime).toInt()}")
 
             ImGui.spacing()
@@ -451,6 +502,8 @@ val generateChunks = Runnable {
     val executor = Executors.newFixedThreadPool(generationThreads)
     while (generatingBlocks.get()) {
         for (coords in missingBlocks) {
+            if (!generatingBlocks.get()) break
+
             if (coords in blocks) {
                 missingBlocks.remove(coords)
                 continue

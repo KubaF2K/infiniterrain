@@ -31,6 +31,11 @@ operator fun Vector2fc.minus(other: Vector2fc): Vector2f = this.sub(other, Vecto
 operator fun Vector3fc.plus(other: Vector3fc): Vector3f = this.add(other, Vector3f())
 
 /**
+ * Adds the vectors together and returns the result in a new vector.
+ */
+operator fun Vector2ic.plus(other: Vector2ic): Vector2i = this.add(other, Vector2i())
+
+/**
  * Multiplies all components of the vector by the given scalar value and returns the result in a new vector.
  */
 operator fun Vector3fc.times(other: Float): Vector3f = this.mul(other, Vector3f())
