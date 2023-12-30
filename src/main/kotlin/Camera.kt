@@ -22,7 +22,7 @@ class Camera(
     val right = Vector3f()
 
     val worldUp = Vector3f(up)
-    var movementSpeed = 2.5f
+    var movementSpeed = 10f
     var mouseSensitivity = .1f
 
 

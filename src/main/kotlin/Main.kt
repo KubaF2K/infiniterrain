@@ -22,13 +22,13 @@ import kotlin.random.Random
 var deltaTime = 0f
 var lastFrameStartTime = 0f
 
-var currentWindowWidth = 800
-var currentWindowHeight = 600
+var currentWindowWidth = 1024
+var currentWindowHeight = 768
 
-const val blockWidth = 3
-const val blockHeight = 3
-const val chunkSize = 100
-const val heightScale = .005f
+const val blockWidth = 5
+const val blockHeight = 5
+const val chunkSize = 10
+const val heightScale = .02f
 const val generationThreads = 4
 
 val rng = Random(1234)
@@ -55,7 +55,8 @@ val blockGLObjects: MutableMap<Vector2i, Triple<Int, Int, Int>> = HashMap()
 val blockVertexArrays: MutableMap<Vector2i, FloatArray> = ConcurrentHashMap()
 val blockTextures: MutableMap<Vector2i, Int> = HashMap()
 
-var generationRadius = ImInt(4)
+var generationRadius = ImInt(32)
+var displayRadius = ImInt(41)
 
 val selectedBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
 
@@ -74,7 +75,7 @@ fun main() {
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE)
 
-    val window = glfwCreateWindow(currentWindowWidth, currentWindowHeight, "helo perlin", NULL, NULL)
+    val window = glfwCreateWindow(currentWindowWidth, currentWindowHeight, "Infiniterrain", NULL, NULL)
     if (window == NULL) {
         error("Failed to create GLFW window")
     }
@@ -255,13 +256,13 @@ fun main() {
 
         val cameraCoords = camera.position.xz().toBlockCoords()
 
-        for (i in 0..generationRadius.get()) {
+        for (i in 0..displayRadius.get()) {
             for (y in -i..i) {
                 val blockCoords = cameraCoords + Vector2i(i, y)
                 if (blockCoords in blocks) {
                     visibleBlocks
                 } else {
-                    if (generatingBlocks.get()) {
+                    if (generatingBlocks.get() && i <= generationRadius.get()) {
                         currentMissingBlocks
                     } else { null }
                 }?.add(blockCoords)
@@ -271,7 +272,7 @@ fun main() {
                 if (blockCoords in blocks) {
                     visibleBlocks
                 } else {
-                    if (generatingBlocks.get()) {
+                    if (generatingBlocks.get() && i <= generationRadius.get()) {
                         currentMissingBlocks
                     } else { null }
                 }?.add(blockCoords)
@@ -281,7 +282,7 @@ fun main() {
                 if (blockCoords in blocks) {
                     visibleBlocks
                 } else {
-                    if (generatingBlocks.get()) {
+                    if (generatingBlocks.get() && i <= generationRadius.get()) {
                         currentMissingBlocks
                     } else { null }
                 }?.add(blockCoords)
@@ -291,7 +292,7 @@ fun main() {
                 if (blockCoords in blocks) {
                     visibleBlocks
                 } else {
-                    if (generatingBlocks.get()) {
+                    if (generatingBlocks.get() && i <= generationRadius.get()) {
                         currentMissingBlocks
                     } else { null }
                 }?.add(blockCoords)
@@ -377,6 +378,7 @@ fun main() {
                 generatingBlocks.set(generatingBlocksGui.get())
             }
             ImGui.inputInt("Generation radius", generationRadius)
+            ImGui.inputInt("Display radius", displayRadius)
             ImGui.text("FPS: ${(1/deltaTime).toInt()}")
 
             ImGui.spacing()
