@@ -13,6 +13,7 @@ import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL33.*
 import org.lwjgl.system.MemoryUtil.NULL
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.floor
@@ -49,7 +50,7 @@ val lightPosition = Vector3f(1.2f, 2f, 2f)
 
 val blocks: MutableMap<Vector2i, Block> = ConcurrentHashMap()
 val generatedBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
-val missingBlocks: MutableSet<Vector2i> = ConcurrentHashMap.newKeySet()
+val missingBlocks = ConcurrentLinkedQueue<Vector2i>()
 val rawBlocks: MutableMap<Vector2i, Block> = ConcurrentHashMap()
 val blockGLObjects: MutableMap<Vector2i, Triple<Int, Int, Int>> = HashMap()
 val blockVertexArrays: MutableMap<Vector2i, FloatArray> = ConcurrentHashMap()
@@ -252,7 +253,6 @@ fun main() {
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
         val visibleBlocks = HashSet<Vector2i>()
-        val currentMissingBlocks = HashSet<Vector2i>()
 
         val cameraCoords = camera.position.xz().toBlockCoords()
 
@@ -263,7 +263,7 @@ fun main() {
                     visibleBlocks
                 } else {
                     if (generatingBlocks.get() && i <= generationRadius.get()) {
-                        currentMissingBlocks
+                        missingBlocks
                     } else { null }
                 }?.add(blockCoords)
             }
@@ -273,7 +273,7 @@ fun main() {
                     visibleBlocks
                 } else {
                     if (generatingBlocks.get() && i <= generationRadius.get()) {
-                        currentMissingBlocks
+                        missingBlocks
                     } else { null }
                 }?.add(blockCoords)
             }
@@ -283,7 +283,7 @@ fun main() {
                     visibleBlocks
                 } else {
                     if (generatingBlocks.get() && i <= generationRadius.get()) {
-                        currentMissingBlocks
+                        missingBlocks
                     } else { null }
                 }?.add(blockCoords)
             }
@@ -293,13 +293,12 @@ fun main() {
                     visibleBlocks
                 } else {
                     if (generatingBlocks.get() && i <= generationRadius.get()) {
-                        currentMissingBlocks
+                        missingBlocks
                     } else { null }
                 }?.add(blockCoords)
             }
         }
 
-        missingBlocks.addAll(currentMissingBlocks)
 
 //        for (y in 0..<currentWindowHeight step currentWindowHeight/64) {
 //            for (x in 0..<currentWindowWidth step currentWindowWidth/64) {
@@ -331,6 +330,7 @@ fun main() {
 
                 glBindBuffer(GL_ARRAY_BUFFER, vbo)
                 glBufferData(GL_ARRAY_BUFFER, vertexArray, GL_STATIC_DRAW)
+                //TODO map buffer and write data in a separate thread
 
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
                 glBufferData(GL_ELEMENT_ARRAY_BUFFER, block.getIndicesArray(), GL_STATIC_DRAW)
@@ -503,60 +503,55 @@ fun deleteBlock(blockCoords: Vector2i) {
 val generateChunks = Runnable {
     val executor = Executors.newFixedThreadPool(generationThreads)
     while (generatingBlocks.get()) {
-        for (coords in missingBlocks) {
-            if (!generatingBlocks.get()) break
+        val coords = missingBlocks.poll() ?: continue
+        if (coords in blocks) {
+            continue
+        }
 
-            if (coords in blocks) {
-                missingBlocks.remove(coords)
-                continue
-            }
+        rawBlocks[coords]?.let {
+            val topNeighbor = blocks[Vector2i(coords.x, coords.y-1)]
+            val rightNeighbor = blocks[Vector2i(coords.x+1, coords.y)]
+            val bottomNeighbor = blocks[Vector2i(coords.x, coords.y+1)]
+            val leftNeighbor = blocks[Vector2i(coords.x-1, coords.y)]
 
-            rawBlocks[coords]?.let {
-                val topNeighbor = blocks[Vector2i(coords.x, coords.y-1)]
-                val rightNeighbor = blocks[Vector2i(coords.x+1, coords.y)]
-                val bottomNeighbor = blocks[Vector2i(coords.x, coords.y+1)]
-                val leftNeighbor = blocks[Vector2i(coords.x-1, coords.y)]
+            it.lerpWithNeighbors(
+                chunkSize/2,
+                topNeighbor,
+                rightNeighbor,
+                bottomNeighbor,
+                leftNeighbor
+            )
 
-                it.lerpWithNeighbors(
-                    chunkSize/2,
-                    topNeighbor,
-                    rightNeighbor,
-                    bottomNeighbor,
-                    leftNeighbor
-                )
-
-                executor.submit {
-                    blockVertexArrays[coords] = it.getVertexArrayWithFaceNormals(heightScale)
-                }
-
-                blocks[coords] = it
-
-                rawBlocks.remove(coords)
-                missingBlocks.remove(coords)
-
-            }
-
-            if (coords in blocks || coords in generatedBlocks) continue
-
-            generatedBlocks.add(coords)
             executor.submit {
-                val block = createPerlinBlock(
-                    blockWidth,
-                    blockHeight,
-                    chunkSize,
-                    rng.nextLong(),
-                ).addFractalPerlinNoise(
-                    4,
-                    0.75f,
-                    2f,
-                    blockWidth,
-                    blockHeight,
-                    chunkSize,
-                    rng.nextLong()
-                )
-                rawBlocks[coords] = block
-                generatedBlocks.remove(coords)
+                blockVertexArrays[coords] = it.getVertexArrayWithFaceNormals(heightScale)
             }
+
+            blocks[coords] = it
+
+            rawBlocks.remove(coords)
+
+        }
+
+        if (coords in blocks || coords in generatedBlocks) continue
+
+        generatedBlocks.add(coords)
+        executor.submit {
+            val block = createPerlinBlock(
+                blockWidth,
+                blockHeight,
+                chunkSize,
+                rng.nextLong(),
+            ).addFractalPerlinNoise(
+                4,
+                0.75f,
+                2f,
+                blockWidth,
+                blockHeight,
+                chunkSize,
+                rng.nextLong()
+            )
+            rawBlocks[coords] = block
+            generatedBlocks.remove(coords)
         }
     }
     missingBlocks.clear()
